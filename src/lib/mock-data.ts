@@ -1,4 +1,5 @@
 // Mock data service for demo purposes with SPACES hierarchy
+import { TaskStatus, TaskPriority } from '@/types'
 export const MOCK_USER = {
   id: 'user-1',
   name: 'Juan Pérez',
@@ -1284,8 +1285,8 @@ export const getMockTasksForCalendar = () => {
         title: randomTask.title,
         description: randomTask.description,
         dueDate: dueDate.toISOString(),
-        status: randomTask.status,
-        priority: randomTask.priority,
+        status: randomTask.status as TaskStatus,
+        priority: randomTask.priority as TaskPriority,
         projectName: randomProject.name,
         assignee: randomTask.assignee
       })
@@ -1299,8 +1300,8 @@ export const getMockTasksForCalendar = () => {
       title: 'Reunión de Planning Semanal',
       description: 'Planificación semanal con el equipo de desarrollo',
       dueDate: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-      status: 'PENDING',
-      priority: 'HIGH',
+      status: 'PENDING' as TaskStatus,
+      priority: 'HIGH' as TaskPriority,
       projectName: 'Desarrollo E-commerce',
       assignee: MOCK_TEAM_MEMBERS[0]
     },
@@ -1309,8 +1310,8 @@ export const getMockTasksForCalendar = () => {
       title: 'Review de Código',
       description: 'Revisión de pull requests pendientes',
       dueDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(), // Day after tomorrow
-      status: 'IN_PROGRESS',
-      priority: 'MEDIUM',
+      status: 'IN_PROGRESS' as TaskStatus,
+      priority: 'MEDIUM' as TaskPriority,
       projectName: 'App Móvil CRM',
       assignee: MOCK_TEAM_MEMBERS[1]
     },
@@ -1319,8 +1320,8 @@ export const getMockTasksForCalendar = () => {
       title: 'Presentación a Cliente',
       description: 'Demostración del prototipo al cliente principal',
       dueDate: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Next week
-      status: 'PENDING',
-      priority: 'HIGH',
+      status: 'PENDING' as TaskStatus,
+      priority: 'HIGH' as TaskPriority,
       projectName: 'Dashboard Analytics',
       assignee: MOCK_TEAM_MEMBERS[2]
     }
