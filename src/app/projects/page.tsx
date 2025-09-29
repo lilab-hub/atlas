@@ -163,7 +163,7 @@ export default function ProjectsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={(e) => handleEdit(e, project)}>
+                        <DropdownMenuItem onClick={(e) => handleEdit(e, project as any)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Editar proyecto
                         </DropdownMenuItem>

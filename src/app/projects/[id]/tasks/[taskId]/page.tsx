@@ -341,6 +341,7 @@ function TaskDetailClient({ projectId, taskId }: { projectId: string; taskId: st
                     className="w-full justify-start"
                     onClick={() => handleTaskUpdate({
                       status: task.status === 'IN_PROGRESS' ? 'PENDING' : 'IN_PROGRESS'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     } as any)}
                   >
                     {task.status === 'IN_PROGRESS' ? 'Pausar' : 'Comenzar Trabajo'}
