@@ -250,6 +250,10 @@ export default function ProjectsPage() {
             onOpenChange={setShowMembersModal}
             projectId={selectedProject.id}
             projectName={selectedProject.name}
+            onMembersUpdated={() => {
+              // Members updated callback - could refresh projects if needed
+              console.log('Project members updated')
+            }}
           />
         </>
       )}

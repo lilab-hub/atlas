@@ -44,7 +44,8 @@ export default function SpacesPage() {
 
   const handleSpaceCreated = (newSpace: Space) => {
     // Add the new space to the local state
-    setSpaces(prevSpaces => [...prevSpaces, newSpace])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setSpaces(prevSpaces => [...prevSpaces, newSpace as any])
     console.log('Space created:', newSpace)
   }
 

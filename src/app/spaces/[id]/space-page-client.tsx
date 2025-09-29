@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -57,7 +57,8 @@ export function SpacePageClient({ spaceId }: { spaceId: string }) {
   }
 
   const handleMemberAdded = (newMember: SpaceMember) => {
-    setSpaceMembers(prevMembers => [...prevMembers, newMember])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setSpaceMembers(prevMembers => [...prevMembers, newMember as any])
     console.log('Member added to space:', newMember)
   }
 
@@ -104,10 +105,11 @@ export function SpacePageClient({ spaceId }: { spaceId: string }) {
               className="p-4 rounded-xl flex-shrink-0"
               style={{ backgroundColor: `${space.color}20` }}
             >
-              <IconComponent
-                className="h-8 w-8"
-                style={{ color: space.color }}
-              />
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {React.createElement(IconComponent as any, {
+                className: "h-8 w-8",
+                style: { color: space.color }
+              })}
             </div>
             <div className="flex-1">
               <CardTitle className="text-2xl">{space.name}</CardTitle>
