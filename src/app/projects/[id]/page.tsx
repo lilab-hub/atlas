@@ -227,7 +227,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                         className="h-auto p-0 text-xs text-blue-600"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {task.dueDate ? formatDate(task.dueDate) : 'Sin fecha'}
+                        {task.dueDate ? formatDate(task.dueDate as unknown as string) : 'Sin fecha'}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -244,7 +244,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     className={`${isHovering ? 'hover:text-blue-600 cursor-pointer' : ''}`}
                     onClick={(e) => handleFieldClick(e, 'dueDate')}
                   >
-                    {task.dueDate ? formatDate(task.dueDate) : 'Sin fecha'}
+                    {task.dueDate ? formatDate(task.dueDate as unknown as string) : 'Sin fecha'}
                   </span>
                 )}
               </div>
@@ -914,11 +914,11 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             <div className="flex items-center space-x-4 text-sm text-gray-500">
               <div className="flex items-center">
                 <CalendarIcon className="h-4 w-4 mr-1" />
-                Creado: {formatDate(project.createdAt)}
+                Creado: {formatDate(project.createdAt as unknown as string)}
               </div>
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-1" />
-                Actualizado: {formatDate(project.updatedAt)}
+                Actualizado: {formatDate(project.updatedAt as unknown as string)}
               </div>
             </div>
           </div>

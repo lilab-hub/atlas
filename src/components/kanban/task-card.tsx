@@ -135,7 +135,7 @@ export function TaskCard({ task, isDragging = false }: TaskCardProps) {
             }`}>
               <Calendar className="h-3 w-3" />
               <span className="text-xs">
-                {formatDate(task.dueDate)}
+                {formatDate(task.dueDate as unknown as string)}
               </span>
             </div>
           )}
