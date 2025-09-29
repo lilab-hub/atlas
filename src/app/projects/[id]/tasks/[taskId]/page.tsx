@@ -63,7 +63,7 @@ function TaskDetailClient({ projectId, taskId }: { projectId: string; taskId: st
 
   const handleTaskUpdate = async (updates: Partial<Task>) => {
     try {
-      await updateTask(updates)
+      await updateTask(updates as any)
       setIsEditing(false)
     } catch (error) {
       console.error('Failed to update task:', error)

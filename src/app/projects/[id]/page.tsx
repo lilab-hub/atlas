@@ -1907,14 +1907,15 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       />
 
       {/* Edit Task Modal */}
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {/* eslint-disable @typescript-eslint/no-explicit-any */}
       <EditTaskModal
         task={taskToEdit as any}
         projectId={projectId!}
         open={showEditTaskModal}
         onOpenChange={setShowEditTaskModal}
-        onTaskUpdated={handleTaskUpdated}
+        onTaskUpdated={handleTaskUpdated as any}
       />
+      {/* eslint-enable @typescript-eslint/no-explicit-any */}
 
       {/* Configuration Side Panel */}
       <div className={`fixed inset-y-0 right-0 z-30 w-80 bg-white border-l border-gray-200 shadow-2xl transform transition-transform duration-300 ${
