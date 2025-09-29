@@ -74,7 +74,7 @@ export async function POST(
         taskId,
         usersToNotify,
         task.title,
-        session.user.name || session.user.email
+        session.user.name || session.user.email || 'Usuario'
       )
     }
 
