@@ -81,7 +81,7 @@ function KanbanPageClient({ projectId }: { projectId: string }) {
         sprint.projectId === projectId ||
         sprint.name.toLowerCase().includes(projectData.name.toLowerCase().split(' ')[0])
       )
-      setSprints(projectSprints)
+      setSprints(projectSprints as unknown as Sprint[])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {

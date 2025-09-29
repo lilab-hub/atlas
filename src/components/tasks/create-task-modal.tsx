@@ -127,7 +127,7 @@ export function CreateTaskModal({
         const availableSprints = sprintsData.filter((sprint: Sprint) =>
           sprint.status === 'PLANNING' || sprint.status === 'ACTIVE'
         )
-        setSprints(availableSprints)
+        setSprints(availableSprints as unknown as Sprint[])
       }
     } catch (error) {
       console.error('Failed to fetch sprints:', error)
