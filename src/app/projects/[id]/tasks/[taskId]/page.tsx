@@ -330,6 +330,7 @@ function TaskDetailClient({ projectId, taskId }: { projectId: string; taskId: st
                     variant="outline"
                     size="sm"
                     className="w-full justify-start"
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onClick={() => handleTaskUpdate({ status: task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED' } as any)}
                   >
                     {task.status === 'COMPLETED' ? 'Marcar como Pendiente' : 'Marcar como Completada'}
@@ -340,7 +341,7 @@ function TaskDetailClient({ projectId, taskId }: { projectId: string; taskId: st
                     className="w-full justify-start"
                     onClick={() => handleTaskUpdate({
                       status: task.status === 'IN_PROGRESS' ? 'PENDING' : 'IN_PROGRESS'
-                    })}
+                    } as any)}
                   >
                     {task.status === 'IN_PROGRESS' ? 'Pausar' : 'Comenzar Trabajo'}
                   </Button>
