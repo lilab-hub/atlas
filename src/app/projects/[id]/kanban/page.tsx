@@ -360,19 +360,19 @@ function KanbanPageClient({ projectId }: { projectId: string }) {
         <PriorityColumn
           title="Prioridad Alta"
           tasks={highPriorityTasks}
-          priority="HIGH"
+          priority={"HIGH" as unknown as TaskPriority}
           color="text-red-700"
         />
         <PriorityColumn
           title="Prioridad Media"
           tasks={mediumPriorityTasks}
-          priority="MEDIUM"
+          priority={"MEDIUM" as unknown as TaskPriority}
           color="text-yellow-700"
         />
         <PriorityColumn
           title="Prioridad Baja"
           tasks={lowPriorityTasks}
-          priority="LOW"
+          priority={"LOW" as unknown as TaskPriority}
           color="text-green-700"
         />
       </div>
