@@ -1328,3 +1328,43 @@ export const getMockTasksForCalendar = () => {
 
   return [...tasks, ...specificTasks]
 }
+
+// MOCK SPRINTS for Kanban filtering
+export const MOCK_SPRINTS = [
+  {
+    id: 'sprint-1',
+    name: 'Sprint 1 - MVP Core',
+    description: 'Funcionalidades básicas del MVP',
+    startDate: '2024-03-01T00:00:00Z',
+    endDate: '2024-03-15T00:00:00Z',
+    status: 'COMPLETED' as const,
+    projectId: 'project-1'
+  },
+  {
+    id: 'sprint-2',
+    name: 'Sprint 2 - E-commerce',
+    description: 'Completar funcionalidades de e-commerce',
+    startDate: '2024-03-16T00:00:00Z',
+    endDate: '2024-03-30T00:00:00Z',
+    status: 'ACTIVE' as const,
+    projectId: 'project-1'
+  },
+  {
+    id: 'sprint-3',
+    name: 'Sprint 1 - CRM Mobile',
+    description: 'Primera iteración de la app móvil',
+    startDate: '2024-03-01T00:00:00Z',
+    endDate: '2024-03-14T00:00:00Z',
+    status: 'COMPLETED' as const,
+    projectId: 'project-2'
+  },
+  {
+    id: 'sprint-4',
+    name: 'Sprint 2 - Integraciones',
+    description: 'Integración con sistemas externos',
+    startDate: '2024-03-15T00:00:00Z',
+    endDate: '2024-03-29T00:00:00Z',
+    status: 'ACTIVE' as const,
+    projectId: 'project-2'
+  }
+]
