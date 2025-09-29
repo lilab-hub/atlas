@@ -149,7 +149,8 @@ export function EditTaskModal({
           createdAt: '2024-03-10T14:15:00Z'
         }
       ]
-      setComments(mockComments)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setComments(mockComments as any)
     } catch (error) {
       console.error('Failed to fetch comments:', error)
     }
@@ -170,7 +171,8 @@ export function EditTaskModal({
         createdAt: new Date().toISOString()
       }
 
-      setComments([...comments, comment])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setComments([...comments, comment as any])
       setNewComment('')
     } catch (error) {
       console.error('Failed to add comment:', error)

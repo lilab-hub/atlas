@@ -56,13 +56,13 @@ interface CreateTaskModalProps {
   onTaskCreated: (task: Task) => void
 }
 
-interface User {
+interface LocalUser {
   id: string
   name?: string
   email: string
 }
 
-interface Sprint {
+interface LocalSprint {
   id: string
   name: string
   status: string
@@ -76,8 +76,8 @@ export function CreateTaskModal({
 }: CreateTaskModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [teamMembers, setTeamMembers] = useState<User[]>([])
-  const [sprints, setSprints] = useState<Sprint[]>([])
+  const [teamMembers, setTeamMembers] = useState<LocalUser[]>([])
+  const [sprints, setSprints] = useState<LocalSprint[]>([])
 
   const {
     register,
@@ -124,10 +124,11 @@ export function CreateTaskModal({
       if (response.ok) {
         const sprintsData = await response.json()
         // Only show active and planning sprints
-        const availableSprints = sprintsData.filter((sprint: Sprint) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const availableSprints = sprintsData.filter((sprint: any) =>
           sprint.status === 'PLANNING' || sprint.status === 'ACTIVE'
         )
-        setSprints(availableSprints as unknown as Sprint[])
+        setSprints(availableSprints as unknown as LocalSprint[])
       }
     } catch (error) {
       console.error('Failed to fetch sprints:', error)

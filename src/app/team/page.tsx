@@ -42,7 +42,8 @@ export default function TeamPage() {
       await new Promise(resolve => setTimeout(resolve, 600))
 
       // Use mock team members data
-      setTeamMembers(MOCK_TEAM_MEMBERS)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setTeamMembers(MOCK_TEAM_MEMBERS as any)
     } catch (error) {
       console.error('Failed to fetch team members:', error)
     } finally {

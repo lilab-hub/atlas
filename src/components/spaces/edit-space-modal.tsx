@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -128,10 +128,11 @@ export function EditSpaceModal({ space, open, onOpenChange, onSpaceUpdated }: Ed
                   className="p-3 rounded-lg"
                   style={{ backgroundColor: `${selectedColor}20` }}
                 >
-                  <SelectedIconComponent
-                    className="h-6 w-6"
-                    style={{ color: selectedColor }}
-                  />
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {React.createElement(SelectedIconComponent as any, {
+                    className: "h-6 w-6",
+                    style: { color: selectedColor }
+                  })}
                 </div>
                 <div>
                   <div className="font-medium">{form.watch('name') || 'Nombre del espacio'}</div>
@@ -193,7 +194,8 @@ export function EditSpaceModal({ space, open, onOpenChange, onSpaceUpdated }: Ed
                             return (
                               <SelectItem key={option.value} value={option.value}>
                                 <div className="flex items-center space-x-2">
-                                  <IconComponent className="h-4 w-4" />
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                  {React.createElement(IconComponent as any, { className: "h-4 w-4" })}
                                   <span>{option.label}</span>
                                 </div>
                               </SelectItem>

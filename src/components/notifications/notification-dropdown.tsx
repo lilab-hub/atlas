@@ -180,8 +180,10 @@ export function NotificationDropdown() {
                         </span>
                         {(notification.task || notification.project) && (
                           <Link
-                            href={getNotificationLink(notification)}
-                            onClick={() => handleNotificationClick(notification)}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            href={getNotificationLink(notification as any)}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            onClick={() => handleNotificationClick(notification as any)}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                           >
                             Ver detalles

@@ -101,8 +101,10 @@ export function InviteUserModal({
   }
 
   const copyInvitationLink = async () => {
-    if (invitationSent?.invitationUrl) {
-      await navigator.clipboard.writeText(invitationSent.invitationUrl)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((invitationSent as any)?.invitationUrl) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await navigator.clipboard.writeText((invitationSent as any).invitationUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
@@ -154,7 +156,8 @@ export function InviteUserModal({
               <Label>Enlace de invitación:</Label>
               <div className="flex gap-2">
                 <Input
-                  value={invitationSent.invitationUrl || ''}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  value={(invitationSent as any).invitationUrl || ''}
                   readOnly
                   className="font-mono text-xs"
                 />

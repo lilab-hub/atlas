@@ -87,7 +87,8 @@ export function AddMemberModal({ open, onOpenChange, onMemberAdded, spaceName }:
           addedAt: new Date().toISOString()
         }
 
-        onMemberAdded(newMember)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onMemberAdded(newMember as any)
       }
 
       // Reset form

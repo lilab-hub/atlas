@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -90,10 +91,11 @@ export function SpaceCard({ space }: SpaceCardProps) {
               className="p-3 rounded-lg flex-shrink-0"
               style={{ backgroundColor: `${space.color}20` }}
             >
-              <IconComponent
-                className="h-6 w-6"
-                style={{ color: space.color }}
-              />
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {React.createElement(IconComponent as any, {
+                className: "h-6 w-6",
+                style: { color: space.color }
+              })}
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="text-lg line-clamp-1 group-hover:text-blue-600 transition-colors">

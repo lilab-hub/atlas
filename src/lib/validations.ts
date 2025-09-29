@@ -23,10 +23,10 @@ export const projectSchema = z.object({
   name: z.string().min(1, 'Project name is required'),
   description: z.string().optional(),
   type: z.enum(['INTERNAL', 'DEPARTMENT', 'CLIENT'], {
-    required_error: 'Project type is required',
+    message: 'Project type is required',
   }),
   methodology: z.enum(['SCRUM', 'KANBAN', 'HYBRID', 'WATERFALL', 'OTHER'], {
-    required_error: 'Project methodology is required',
+    message: 'Project methodology is required',
   }),
   projectType: z.enum(['Desarrollo de Software', 'Marketing', 'Diseño', 'General']).optional(),
   customStatuses: z.array(statusSchema).optional(),
