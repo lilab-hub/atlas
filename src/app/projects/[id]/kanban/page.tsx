@@ -70,7 +70,7 @@ function KanbanPageClient({ projectId }: { projectId: string }) {
         return
       }
 
-      setProject(projectData)
+      setProject(projectData as unknown as Project)
 
       // Get tasks for this project
       const projectTasks = getMockTasksByProjectId(projectId)

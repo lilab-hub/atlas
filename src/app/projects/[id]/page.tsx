@@ -476,7 +476,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         return
       }
 
-      setProject(projectData)
+      setProject(projectData as unknown as Project)
       setTasks(projectTasks)
 
       // Load subtasks for all tasks in the project
