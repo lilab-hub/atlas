@@ -19,11 +19,30 @@ export async function POST(request: NextRequest) {
     const validatedData = projectSchema.parse(body)
     const { name, description, projectType, customStatuses, ...otherFields } = validatedData
 
+    // Get or create a default space for the organization
+    let defaultSpace = await prisma.space.findFirst({
+      where: {
+        organizationId: session.user.organizationId,
+        name: 'General'
+      }
+    })
+
+    if (!defaultSpace) {
+      defaultSpace = await prisma.space.create({
+        data: {
+          name: 'General',
+          description: 'Default space for projects',
+          organizationId: session.user.organizationId
+        }
+      })
+    }
+
     const project = await prisma.project.create({
       data: {
         name,
         description,
-        organizationId: session.user.organizationId
+        organizationId: session.user.organizationId,
+        spaceId: defaultSpace.id
       },
       include: {
         organization: true,
