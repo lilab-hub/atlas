@@ -74,7 +74,7 @@ function KanbanPageClient({ projectId }: { projectId: string }) {
 
       // Get tasks for this project
       const projectTasks = getMockTasksByProjectId(projectId)
-      setTasks(projectTasks)
+      setTasks(projectTasks as unknown as Task[])
 
       // Get sprints for this project
       const projectSprints = MOCK_SPRINTS.filter(sprint =>

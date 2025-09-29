@@ -215,7 +215,7 @@ export function EditTaskModal({
     try {
       if (!task?.id) return
       const taskSubtasks = getMockSubtasksByTaskId(task.id)
-      setSubtasks(taskSubtasks)
+      setSubtasks(taskSubtasks as unknown as Task[])
     } catch (error) {
       console.error('Failed to fetch subtasks:', error)
     }

@@ -477,11 +477,11 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       }
 
       setProject(projectData as unknown as Project)
-      setTasks(projectTasks)
+      setTasks(projectTasks as unknown as Task[])
 
       // Load subtasks for all tasks in the project
       const allSubtasks = projectTasks.flatMap(task => getMockSubtasksByTaskId(task.id))
-      setSubtasks(allSubtasks)
+      setSubtasks(allSubtasks as unknown as Task[])
 
       // Initialize project configuration
       const config = getDefaultProjectConfig(projectId)
