@@ -23,13 +23,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         description,
-        organizationId: session.user.organizationId,
-        // Store additional project metadata if needed
-        metadata: {
-          projectType: projectType || 'General',
-          customStatuses: customStatuses || [],
-          ...otherFields
-        }
+        organizationId: session.user.organizationId
       },
       include: {
         organization: true,

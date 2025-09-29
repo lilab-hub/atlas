@@ -89,7 +89,7 @@ async function updateTask(
       }
     } else if (updateData.assigneeId === '') {
       // Empty string means remove assignee
-      processedData.assigneeId = null
+      processedData.assigneeId = undefined
     }
 
     // Verify sprint exists and belongs to the project if provided
@@ -109,7 +109,7 @@ async function updateTask(
       }
     } else if (updateData.sprintId === '') {
       // Empty string means remove from sprint
-      processedData.sprintId = null
+      processedData.sprintId = undefined
     }
 
     const updatedTask = await prisma.task.update({
