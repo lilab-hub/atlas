@@ -66,27 +66,15 @@ export async function POST(request: NextRequest) {
 
     const parsedTaskId = parseInt(taskId)
 
-    // Verify task exists and user has access
+    // Verify task exists
     const task = await prisma.task.findUnique({
-      where: { id: parsedTaskId },
-      include: {
-        project: {
-          select: { organizationId: true }
-        }
-      }
+      where: { id: parsedTaskId }
     })
 
     if (!task) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
-      )
-    }
-
-    if (task.project.organizationId !== session.user.organizationId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
       )
     }
 
@@ -99,12 +87,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate S3 key
-    const key = generateAttachmentKey(
-      session.user.organizationId,
-      parsedTaskId,
-      fileName
-    )
+    // Generate S3 key (simplified without organizationId)
+    const timestamp = Date.now()
+    const randomString = Math.random().toString(36).substring(2, 8)
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const key = `attachments/tasks/${parsedTaskId}/${timestamp}-${randomString}-${sanitizedFileName}`
 
     // Determine content type
     const contentType = getContentType(fileName)

@@ -60,27 +60,15 @@ export async function POST(request: NextRequest) {
     const taskId = parseInt(taskIdStr)
     console.log('Parsed taskId:', taskId)
 
-    // Verify task exists and user has access
+    // Verify task exists
     const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
-        project: {
-          select: { organizationId: true }
-        }
-      }
+      where: { id: taskId }
     })
 
     if (!task) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
-      )
-    }
-
-    if (task.project.organizationId !== session.user.organizationId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
       )
     }
 
@@ -100,7 +88,7 @@ export async function POST(request: NextRequest) {
     console.log('Buffer size:', buffer.length)
 
     // Upload to S3
-    const folder = `attachments/${session.user.organizationId}/${taskId}`
+    const folder = `attachments/tasks/${taskId}`
     console.log('Uploading to S3, folder:', folder)
     console.log('S3 Config:', {
       bucket: process.env.AWS_S3_BUCKET_NAME,

@@ -1,6 +1,6 @@
-# Configuración de AWS S3 para Atlas
+# Configuración de AWS S3 para Atalaya
 
-Este documento explica cómo configurar AWS S3 para habilitar la subida de archivos adjuntos en Atlas.
+Este documento explica cómo configurar AWS S3 para habilitar la subida de archivos adjuntos en Atalaya.
 
 ## Requisitos Previos
 
@@ -15,7 +15,7 @@ Este documento explica cómo configurar AWS S3 para habilitar la subida de archi
 2. Navega a **S3** (puedes buscarlo en la barra de búsqueda)
 3. Haz clic en **"Create bucket"**
 4. Configura el bucket:
-   - **Bucket name**: `atlas-attachments` (o el nombre que prefieras)
+   - **Bucket name**: `atalaya-attachments` (o el nombre que prefieras)
    - **AWS Region**: Selecciona la región más cercana (ej: `us-east-1`)
    - **Block Public Access settings**: Mantén todas las opciones marcadas (los archivos serán privados)
    - Deja las demás opciones por defecto
@@ -62,7 +62,7 @@ Este documento explica cómo configurar AWS S3 para habilitar la subida de archi
 2. En el menú lateral, haz clic en **"Users"**
 3. Haz clic en **"Create user"**
 4. Configura el usuario:
-   - **User name**: `atlas-s3-uploader`
+   - **User name**: `atalaya-s3-uploader`
    - **Access type**: Marca **"Programmatic access"** (no necesita acceso a la consola)
 5. Haz clic en **"Next: Permissions"**
 
@@ -77,7 +77,7 @@ Este documento explica cómo configurar AWS S3 para habilitar la subida de archi
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "AtlasS3Upload",
+            "Sid": "AtalayaS3Upload",
             "Effect": "Allow",
             "Action": [
                 "s3:PutObject",
@@ -85,31 +85,31 @@ Este documento explica cómo configurar AWS S3 para habilitar la subida de archi
                 "s3:GetObject",
                 "s3:DeleteObject"
             ],
-            "Resource": "arn:aws:s3:::atlas-attachments/*"
+            "Resource": "arn:aws:s3:::atalaya-attachments/*"
         },
         {
-            "Sid": "AtlasS3List",
+            "Sid": "AtalayaS3List",
             "Effect": "Allow",
             "Action": [
                 "s3:ListBucket"
             ],
-            "Resource": "arn:aws:s3:::atlas-attachments"
+            "Resource": "arn:aws:s3:::atalaya-attachments"
         }
     ]
 }
 ```
 
-4. Reemplaza `atlas-attachments` con el nombre de tu bucket
+4. Reemplaza `atalaya-attachments` con el nombre de tu bucket
 5. Haz clic en **"Next: Tags"** (opcional)
 6. Haz clic en **"Next: Review"**
-7. Nombra la política: `AtlasS3UploadPolicy`
+7. Nombra la política: `AtalayaS3UploadPolicy`
 8. Haz clic en **"Create policy"**
 
 ### 5. Adjuntar la Política al Usuario
 
 1. Regresa a la pestaña de creación del usuario
 2. Haz clic en el botón de **"Refresh"** para ver la nueva política
-3. Busca y selecciona **"AtlasS3UploadPolicy"**
+3. Busca y selecciona **"AtalayaS3UploadPolicy"**
 4. Haz clic en **"Next: Tags"** (opcional)
 5. Haz clic en **"Next: Review"**
 6. Haz clic en **"Create user"**
@@ -131,7 +131,7 @@ Este documento explica cómo configurar AWS S3 para habilitar la subida de archi
 AWS_ACCESS_KEY_ID="tu-access-key-id"
 AWS_SECRET_ACCESS_KEY="tu-secret-access-key"
 AWS_REGION="us-east-1"
-AWS_S3_BUCKET_NAME="atlas-attachments"
+AWS_S3_BUCKET_NAME="atalaya-attachments"
 ```
 
 ### 7. Configuración de Bucket Policy (Opcional - para acceso público)
@@ -152,7 +152,7 @@ Si quieres que los archivos sean accesibles públicamente (no recomendado para a
             "Effect": "Allow",
             "Principal": "*",
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::atlas-attachments/*"
+            "Resource": "arn:aws:s3:::atalaya-attachments/*"
         }
     ]
 }
