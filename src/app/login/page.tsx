@@ -52,7 +52,7 @@ function LoginForm() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
       {/* Version badge */}
       <div className="absolute top-4 left-4 text-xs text-gray-500 font-medium">
-        v1.0.2
+        v1.0.3
       </div>
 
       <div className="w-full max-w-md">
