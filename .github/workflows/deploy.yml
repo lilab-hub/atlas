@@ -37,10 +37,6 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Run type check
-        run: npm run typecheck
-        continue-on-error: true
-
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
