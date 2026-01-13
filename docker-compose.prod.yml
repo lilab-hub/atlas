@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  atlas:
+    image: atlas:latest
+    container_name: atlas
+    networks:
+      - default
+    expose:
+      - "80"
+    environment:
+      - NODE_ENV=production
+      - PORT=80
+      - DATABASE_URL=postgresql://traceup:traceup@postgres-traceup:5432/atlas_db
+      - NEXTAUTH_URL=https://atlas.lilab.pe
+      - NEXTAUTH_SECRET=kX1h62e9eydwzCcJsUSlWzBmLXsblIc51gFRe9aVdQE=
+      - AUTH_TRUST_HOST=true
+      - VIRTUAL_HOST=atlas.lilab.pe
+      - LETSENCRYPT_HOST=atlas.lilab.pe
+      - LETSENCRYPT_EMAIL=piero.storace@lilab.pe
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://localhost:80', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    external: true
+    name: default
