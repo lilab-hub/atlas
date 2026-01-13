@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth'
 // PATCH /api/notifications/[id]/read - Mark notification as read
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -18,7 +18,8 @@ export async function PATCH(
       )
     }
 
-    const notificationId = parseInt(params.id)
+    const resolvedParams = await params
+    const notificationId = parseInt(resolvedParams.id)
 
     if (isNaN(notificationId)) {
       return NextResponse.json(
@@ -40,7 +41,7 @@ export async function PATCH(
     }
 
     // Verify notification belongs to the user
-    if (notification.userId !== session.user.id) {
+    if (notification.userId !== parseInt(session.user.id)) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

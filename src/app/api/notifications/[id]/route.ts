@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth'
 // GET /api/notifications/[id] - Get a single notification
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -18,7 +18,8 @@ export async function GET(
       )
     }
 
-    const notificationId = parseInt(params.id)
+    const resolvedParams = await params
+    const notificationId = parseInt(resolvedParams.id)
 
     if (isNaN(notificationId)) {
       return NextResponse.json(
@@ -39,7 +40,7 @@ export async function GET(
     }
 
     // Verify notification belongs to the user
-    if (notification.userId !== session.user.id) {
+    if (notification.userId !== parseInt(session.user.id)) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -59,7 +60,7 @@ export async function GET(
 // DELETE /api/notifications/[id] - Delete a notification
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -71,7 +72,8 @@ export async function DELETE(
       )
     }
 
-    const notificationId = parseInt(params.id)
+    const resolvedParams = await params
+    const notificationId = parseInt(resolvedParams.id)
 
     if (isNaN(notificationId)) {
       return NextResponse.json(
@@ -93,7 +95,7 @@ export async function DELETE(
     }
 
     // Verify notification belongs to the user
-    if (notification.userId !== session.user.id) {
+    if (notification.userId !== parseInt(session.user.id)) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

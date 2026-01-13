@@ -18,10 +18,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { toast } from 'sonner'
 import { SpaceMember } from '@/types'
 import { Badge } from '@/components/ui/badge'
-import { UserPlus, Users, Shield, Loader2, Eye, Trash2 } from 'lucide-react'
+import { UserPlus, Users, Shield, Loader2, Trash2, Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface User {
   id: string
@@ -46,17 +60,25 @@ export function AddMemberModal({ open, onOpenChange, onMemberAdded, spaceName, s
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
+  const [comboboxOpen, setComboboxOpen] = useState(false)
 
   const handleUserChange = (value: string) => {
     console.log('Usuario seleccionado:', value)
     setSelectedUser(value)
+    setComboboxOpen(false)
   }
 
-  // Filter out users who are already members
-  const filteredUsers = availableUsers.filter(user => {
-    const existingMemberIds = existingMembers.map(m => m.userId.toString())
-    return !existingMemberIds.includes(user.id)
-  })
+  // Filter out users who are already members and sort alphabetically
+  const filteredUsers = availableUsers
+    .filter(user => {
+      const existingMemberIds = existingMembers.map(m => m.userId.toString())
+      return !existingMemberIds.includes(user.id)
+    })
+    .sort((a, b) => {
+      const nameA = (a.name || a.email).toLowerCase()
+      const nameB = (b.name || b.email).toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
 
   // Helper function to get user display text
   const getUserDisplayText = (user: User) => {
@@ -238,39 +260,72 @@ export function AddMemberModal({ open, onOpenChange, onMemberAdded, spaceName, s
               </div>
             )}
 
-            {/* User Selection */}
+            {/* User Selection with Search */}
             <div className="grid gap-2">
               <Label>Seleccionar Usuario *</Label>
-              <Select value={selectedUser} onValueChange={handleUserChange} disabled={isLoading || isSubmitting}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un usuario..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {isLoading ? (
-                    <div className="p-2 text-sm text-gray-500 text-center">
-                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                    </div>
-                  ) : filteredUsers.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">
-                      {availableUsers.length === 0
-                        ? 'No hay usuarios disponibles'
-                        : 'Todos los usuarios ya son miembros de este espacio'
-                      }
-                    </div>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <SelectItem key={user.id} value={String(user.id)}>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          <div className="flex flex-col">
-                            <span>{user.name || user.email}</span>
+              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={comboboxOpen}
+                    className="w-full justify-between"
+                    disabled={isLoading || isSubmitting}
+                  >
+                    {selectedUser ? (
+                      <span className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        {(() => {
+                          const user = filteredUsers.find(u => u.id === selectedUser)
+                          return user ? (user.name || user.email) : 'Selecciona un usuario...'
+                        })()}
+                      </span>
+                    ) : (
+                      'Selecciona un usuario...'
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[460px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar usuario por nombre o email..." />
+                    <CommandList>
+                      <CommandEmpty>
+                        {isLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                           </div>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                        ) : (
+                          'No se encontraron usuarios'
+                        )}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredUsers.map((user) => (
+                          <CommandItem
+                            key={user.id}
+                            value={`${user.name || ''} ${user.email}`}
+                            onSelect={() => handleUserChange(user.id)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedUser === user.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <Users className="mr-2 h-4 w-4 text-gray-400" />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{user.name || user.email}</span>
+                              {user.name && (
+                                <span className="text-xs text-gray-500">{user.email}</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Role Selection */}
