@@ -106,7 +106,10 @@ export function Sidebar({ className, collapsed = false, onToggleCollapse }: Side
                 height={32}
                 className="flex-shrink-0"
               />
-              <span className="text-xl font-bold text-gray-900">Atlas</span>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-gray-900">Atlas</span>
+                <span className="text-xs text-gray-500">v1.0.3</span>
+              </div>
             </div>
 
             {/* Toggle Button - Expanded */}

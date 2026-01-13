@@ -105,7 +105,7 @@ export function SpacePageClient({ spaceId }: { spaceId: string }) {
 
   if (isLoading) {
     return (
-      <MainLayout title="Loading..." description="Loading space details">
+      <MainLayout title="Loading...">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
         </div>
@@ -131,7 +131,6 @@ export function SpacePageClient({ spaceId }: { spaceId: string }) {
   return (
     <MainLayout
       title={space.name}
-      description={space.description || 'Space overview and projects'}
     >
       {/* Back button */}
       <div className="mb-6">
@@ -173,11 +172,6 @@ export function SpacePageClient({ spaceId }: { spaceId: string }) {
                   </Badge>
                 )}
               </div>
-              {space.description && (
-                <CardDescription className="mt-2 text-base">
-                  {space.description}
-                </CardDescription>
-              )}
               <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
                 <span>Created {new Date(space.createdAt).toLocaleDateString()}</span>
                 <span>•</span>
