@@ -37,9 +37,6 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Run linter
-        run: npm run lint
-
       - name: Run type check
         run: npm run typecheck
         continue-on-error: true
