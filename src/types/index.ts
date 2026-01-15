@@ -84,6 +84,15 @@ export enum ProjectRole {
 }
 
 
+// Task Assignee Types (many-to-many relationship)
+export interface TaskAssignee {
+  id: string;
+  taskId: string;
+  userId: string;
+  user: User;
+  createdAt: Date;
+}
+
 // Task Types
 export interface Task {
   id: string;
@@ -95,11 +104,14 @@ export interface Task {
   projectId: string;
   sprintId?: string;
   epicId?: string;
+  // Multiple assignees (new)
+  assignees: TaskAssignee[];
+  // DEPRECATED: Legacy single assignee (for backwards compatibility)
   assigneeId?: string;
+  assignee?: User;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
-  assignee?: User;
   createdBy: User;
   epic?: Epic;
   comments: Comment[];

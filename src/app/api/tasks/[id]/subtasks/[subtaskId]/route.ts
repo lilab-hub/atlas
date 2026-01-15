@@ -45,7 +45,7 @@ export async function PATCH(
       }
     })
 
-    if (!subtask || !subtask.parentTaskId) {
+    if (!subtask || !subtask.parentTaskId || subtask.deletedAt) {
       return NextResponse.json(
         { error: 'Subtask not found' },
         { status: 404 }
@@ -67,11 +67,24 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assigneeId, order } = body
+    const { title, description, status, priority, dueDate, assigneeId, assigneeIds, order } = body
 
-    // Store previous assigneeId and status for notification comparison
-    const previousAssigneeId = subtask.assigneeId
+    // Store previous status for notification comparison
     const previousStatus = subtask.status
+
+    // Get current assignee IDs for comparison
+    const currentAssignees = await prisma.taskAssignee.findMany({
+      where: { taskId: subtaskId },
+      select: { userId: true }
+    })
+    const previousAssigneeIds = currentAssignees.map(a => a.userId)
+
+    // Support both legacy assigneeId (single) and new assigneeIds (multiple)
+    const assigneeIdsToUse: number[] | undefined = assigneeIds !== undefined
+      ? assigneeIds.map((id: string | number) => parseInt(String(id))).filter((id: number) => !isNaN(id))
+      : (assigneeId !== undefined
+          ? (assigneeId ? [parseInt(assigneeId)] : [])
+          : undefined)
 
     const updatedSubtask = await prisma.task.update({
       where: { id: subtaskId },
@@ -81,7 +94,10 @@ export async function PATCH(
         ...(status !== undefined && { status }),
         ...(priority !== undefined && { priority }),
         ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-        ...(assigneeId !== undefined && { assigneeId: assigneeId ? parseInt(assigneeId) : null }),
+        // Legacy field - set to first assignee for backwards compatibility
+        ...(assigneeIdsToUse !== undefined && {
+          assigneeId: assigneeIdsToUse.length > 0 ? assigneeIdsToUse[0] : null
+        }),
         ...(order !== undefined && { order })
       },
       include: {
@@ -90,6 +106,20 @@ export async function PATCH(
             id: true,
             name: true,
             email: true
+          }
+        },
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         },
         createdBy: {
@@ -102,17 +132,77 @@ export async function PATCH(
       }
     })
 
-    // Send notification if assignee changed and it's not the current user
-    if (assigneeId !== undefined &&
-        previousAssigneeId !== updatedSubtask.assigneeId &&
-        updatedSubtask.assigneeId !== null &&
-        updatedSubtask.assigneeId !== parseInt(session.user.id)) {
-      await notifyTaskAssigned(
-        updatedSubtask.id.toString(),
-        updatedSubtask.assigneeId.toString(),
-        updatedSubtask.title,
-        subtask.parentTask.project.id?.toString() || ''
-      ).catch(err => console.error('Failed to send assignment notification:', err))
+    // Update multiple assignees if provided
+    if (assigneeIdsToUse !== undefined) {
+      // Delete existing assignees
+      await prisma.taskAssignee.deleteMany({
+        where: { taskId: subtaskId }
+      })
+
+      // Create new assignees
+      if (assigneeIdsToUse.length > 0) {
+        await prisma.taskAssignee.createMany({
+          data: assigneeIdsToUse.map(userId => ({
+            taskId: subtaskId,
+            userId
+          }))
+        })
+      }
+
+      // Reload to get updated assignees
+      const reloadedSubtask = await prisma.task.findUnique({
+        where: { id: subtaskId },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          assignees: {
+            select: {
+              id: true,
+              userId: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      })
+
+      // Send notifications to newly assigned users
+      const newAssigneeIds = assigneeIdsToUse.filter(id => !previousAssigneeIds.includes(id))
+      const currentUserId = parseInt(session.user.id)
+
+      for (const userId of newAssigneeIds) {
+        if (userId !== currentUserId) {
+          await notifyTaskAssigned(
+            updatedSubtask.id.toString(),
+            userId.toString(),
+            updatedSubtask.title,
+            subtask.parentTask?.project?.id?.toString() || ''
+          ).catch(err => console.error('Failed to send assignment notification:', err))
+        }
+      }
+
+      // Return reloaded subtask with updated assignees
+      if (reloadedSubtask) {
+        return NextResponse.json(reloadedSubtask)
+      }
     }
 
     // Send notification when subtask is completed
@@ -122,8 +212,15 @@ export async function PATCH(
       const usersToNotify = new Set<number>()
       const currentUserId = parseInt(session.user.id)
 
-      // Add assignee if different from current user
-      if (updatedSubtask.assigneeId && updatedSubtask.assigneeId !== currentUserId) {
+      // Add all assignees if different from current user
+      if (updatedSubtask.assignees && updatedSubtask.assignees.length > 0) {
+        for (const assignee of updatedSubtask.assignees) {
+          if (assignee.userId !== currentUserId) {
+            usersToNotify.add(assignee.userId)
+          }
+        }
+      } else if (updatedSubtask.assigneeId && updatedSubtask.assigneeId !== currentUserId) {
+        // Fallback to legacy single assignee
         usersToNotify.add(updatedSubtask.assigneeId)
       }
 
@@ -139,7 +236,7 @@ export async function PATCH(
           updatedSubtask.id.toString(),
           updatedSubtask.title,
           session.user.name || session.user.email,
-          subtask.parentTask.project.id?.toString() || ''
+          subtask.parentTask?.project?.id?.toString() || ''
         ).catch(err => console.error('Failed to send task completion notification:', err))
       }
     }
@@ -195,7 +292,7 @@ export async function DELETE(
       }
     })
 
-    if (!subtask || !subtask.parentTaskId) {
+    if (!subtask || !subtask.parentTaskId || subtask.deletedAt) {
       return NextResponse.json(
         { error: 'Subtask not found' },
         { status: 404 }
@@ -216,8 +313,19 @@ export async function DELETE(
       )
     }
 
-    await prisma.task.delete({
-      where: { id: subtaskId }
+    // Only the creator can delete the subtask
+    const currentUserId = parseInt(session.user.id)
+    if (subtask.createdById !== currentUserId) {
+      return NextResponse.json(
+        { error: 'Solo el creador de la subtarea puede eliminarla' },
+        { status: 403 }
+      )
+    }
+
+    // Soft delete - set deletedAt timestamp instead of actually deleting
+    await prisma.task.update({
+      where: { id: subtaskId },
+      data: { deletedAt: new Date() }
     })
 
     return NextResponse.json({ message: 'Subtask deleted successfully' })

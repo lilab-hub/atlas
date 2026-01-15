@@ -24,9 +24,10 @@ interface SpaceCardProps {
   onDuplicate?: () => void
   onDelete?: () => void
   onSpaceUpdated?: () => void
+  onDoubleClick?: () => void
 }
 
-export function SpaceCard({ space, onDuplicate, onDelete, onSpaceUpdated }: SpaceCardProps) {
+export function SpaceCard({ space, onDuplicate, onDelete, onSpaceUpdated, onDoubleClick }: SpaceCardProps) {
   const { data: session } = useSession()
   const [showEditModal, setShowEditModal] = useState(false)
   const [showMembersModal, setShowMembersModal] = useState(false)
@@ -78,7 +79,7 @@ export function SpaceCard({ space, onDuplicate, onDelete, onSpaceUpdated }: Spac
   }
 
   return (
-    <Card className="hover:shadow-md transition-all cursor-pointer group" onClick={handleCardClick}>
+    <Card className="hover:shadow-md transition-all cursor-pointer group" onClick={handleCardClick} onDoubleClick={onDoubleClick}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3 flex-1">

@@ -22,9 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { TaskPriority } from '@prisma/client'
 import { User, ProjectMember, Sprint } from '@/types'
-import { Loader2, ListTodo } from 'lucide-react'
+import { Loader2, ListTodo, Users, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 const taskSchema = z.object({
@@ -32,7 +38,7 @@ const taskSchema = z.object({
   description: z.string().optional(),
   priority: z.nativeEnum(TaskPriority),
   dueDate: z.string().optional(),
-  assigneeId: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   sprintId: z.string().optional(),
   epicId: z.string().optional(),
 })
@@ -99,13 +105,31 @@ export function CreateTaskModal({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       priority: TaskPriority.MEDIUM,
+      assigneeIds: [],
     },
   })
 
   const priority = watch('priority')
-  const assigneeId = watch('assigneeId')
+  const assigneeIds = watch('assigneeIds') || []
   const sprintId = watch('sprintId')
   const epicId = watch('epicId')
+
+  const toggleAssignee = (userId: string) => {
+    const currentIds = assigneeIds || []
+    if (currentIds.includes(userId)) {
+      setValue('assigneeIds', currentIds.filter(id => id !== userId))
+    } else {
+      setValue('assigneeIds', [...currentIds, userId])
+    }
+  }
+
+  const removeAssignee = (userId: string) => {
+    setValue('assigneeIds', (assigneeIds || []).filter(id => id !== userId))
+  }
+
+  const getSelectedAssignees = () => {
+    return teamMembers.filter(member => (assigneeIds || []).includes(member.id))
+  }
 
   useEffect(() => {
     if (open) {
@@ -320,24 +344,62 @@ export function CreateTaskModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="assignee">Assignee</Label>
-            <Select
-              value={assigneeId || ''}
-              onValueChange={(value) => setValue('assigneeId', value || undefined)}
-              disabled={isLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select assignee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">No assignee</SelectItem>
-                {teamMembers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
+            <Label>Asignados</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start font-normal"
+                  disabled={isLoading}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {assigneeIds.length === 0
+                    ? 'Seleccionar asignados'
+                    : `${assigneeIds.length} asignado${assigneeIds.length > 1 ? 's' : ''}`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-2" align="start">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground p-2">No hay miembros disponibles</p>
+                  ) : (
+                    teamMembers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
+                        onClick={() => toggleAssignee(user.id)}
+                      >
+                        <Checkbox
+                          checked={assigneeIds.includes(user.id)}
+                          onCheckedChange={() => toggleAssignee(user.id)}
+                        />
+                        <span className="text-sm">{user.name || user.email}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+            {/* Show selected assignees as chips */}
+            {getSelectedAssignees().length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {getSelectedAssignees().map((user) => (
+                  <span
+                    key={user.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full"
+                  >
                     {user.name || user.email}
-                  </SelectItem>
+                    <button
+                      type="button"
+                      onClick={() => removeAssignee(user.id)}
+                      className="hover:bg-blue-200 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

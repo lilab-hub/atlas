@@ -21,12 +21,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Loader2, UserPlus, Users, Trash2, Crown, Shield, Eye, User, Mail } from 'lucide-react'
+import { Loader2, UserPlus, Users, Trash2, Crown, Shield, Eye, User, Mail, Check, ChevronsUpDown } from 'lucide-react'
 import { SendInvitationModal } from '@/components/invitations/send-invitation-modal'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 const addMemberSchema = z.object({
   userId: z.string().min(1, 'User is required'),
@@ -77,6 +91,7 @@ export function ManageProjectMembersModal({
   const [availableUsers, setAvailableUsers] = useState<User[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [comboboxOpen, setComboboxOpen] = useState(false)
 
   const {
     handleSubmit,
@@ -169,6 +184,7 @@ export function ManageProjectMembersModal({
       toast.success('Miembro agregado al proyecto exitosamente')
       await fetchProjectMembers()
       reset()
+      setComboboxOpen(false)
       onMembersUpdated()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred'
@@ -202,6 +218,7 @@ export function ManageProjectMembersModal({
     if (!newOpen) {
       reset()
       setError(null)
+      setComboboxOpen(false)
     }
     onOpenChange(newOpen)
   }
@@ -246,10 +263,16 @@ export function ManageProjectMembersModal({
     return 'U'
   }
 
-  // Filter available users (exclude those already in project)
-  const usersToShow = availableUsers.filter(user =>
-    !projectMembers.some(member => member.user.id === user.id)
-  )
+  // Filter available users (exclude those already in project) and sort alphabetically
+  const usersToShow = availableUsers
+    .filter(user =>
+      !projectMembers.some(member => member.user.id === user.id)
+    )
+    .sort((a, b) => {
+      const nameA = (a.name || a.email).toLowerCase()
+      const nameB = (b.name || b.email).toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
 
   console.log('[DEBUG] Available users:', availableUsers)
   console.log('[DEBUG] Project members:', projectMembers)
@@ -285,28 +308,69 @@ export function ManageProjectMembersModal({
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="userId">Usuario</Label>
-                    <Select
-                      value={selectedUserId || ''}
-                      onValueChange={(value) => setValue('userId', value)}
-                      disabled={isLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar usuario" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {usersToShow.length === 0 ? (
-                          <div className="p-2 text-sm text-gray-500">
-                            Todos los usuarios ya son miembros
-                          </div>
-                        ) : (
-                          usersToShow.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>
-                              {user.name ? `${user.name} (${user.email})` : user.email}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={comboboxOpen}
+                          className="w-full justify-between"
+                          disabled={isLoading || usersToShow.length === 0}
+                        >
+                          {selectedUserId ? (
+                            <span className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              {(() => {
+                                const user = usersToShow.find(u => u.id === selectedUserId)
+                                return user ? (user.name || user.email) : 'Seleccionar usuario'
+                              })()}
+                            </span>
+                          ) : (
+                            'Seleccionar usuario'
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[460px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar usuario por nombre o email..." />
+                          <CommandList>
+                            <CommandEmpty>
+                              {usersToShow.length === 0
+                                ? 'Todos los usuarios ya son miembros'
+                                : 'No se encontraron usuarios'
+                              }
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {usersToShow.map((user) => (
+                                <CommandItem
+                                  key={user.id}
+                                  value={`${user.name || ''} ${user.email}`}
+                                  onSelect={() => {
+                                    setValue('userId', user.id)
+                                    setComboboxOpen(false)
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedUserId === user.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <User className="mr-2 h-4 w-4 text-gray-400" />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{user.name || user.email}</span>
+                                    {user.name && (
+                                      <span className="text-xs text-gray-500">{user.email}</span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     {errors.userId && (
                       <p className="text-sm text-red-600">{errors.userId.message}</p>
                     )}

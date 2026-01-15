@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ManageProjectMembersModal } from '@/components/projects/manage-project-members-modal'
 import { EditProjectModal } from '@/components/projects/edit-project-modal'
@@ -44,7 +45,10 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  CollisionDetection,
+  getFirstCollision,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -191,6 +195,37 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       },
     })
   )
+
+  // Custom collision detection that prioritizes columns over tasks
+  const collisionDetectionStrategy: CollisionDetection = (args) => {
+    // Get all status IDs from project config to identify column droppables
+    const statusIds = projectConfig?.statuses.map(s => s.id) || []
+    const sprintIds = sprints.map(s => `sprint-${s.id}`)
+    const columnIds = [...statusIds, ...sprintIds, 'sprint-backlog']
+
+    // First, check for intersections with columns using rectIntersection
+    const rectCollisions = rectIntersection(args)
+
+    // Filter to only column collisions
+    const columnCollisions = rectCollisions.filter(collision =>
+      columnIds.includes(String(collision.id))
+    )
+
+    // If we have a column collision, prioritize it
+    if (columnCollisions.length > 0) {
+      return columnCollisions
+    }
+
+    // Otherwise, use pointerWithin for more precise detection
+    const pointerCollisions = pointerWithin(args)
+
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions
+    }
+
+    // Fallback to rect intersections
+    return rectCollisions
+  }
 
   // Funciones para manejar drag and drop
   const handleDragStart = (event: DragStartEvent) => {
@@ -890,10 +925,33 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     }
   }
 
+  const handleTaskDeleted = async (taskId: string) => {
+    // Check if it's a subtask
+    if (taskToEdit && (taskToEdit as any).isSubtask) {
+      // Remove from subtasks state - use String() for consistent comparison
+      setSubtasks(prev => prev.filter(s => String(s.id) !== String(taskId)))
+      // Also update parent task's subtasks array
+      const parentTaskId = (taskToEdit as any).taskId
+      setTasks(prev => prev.map(task => {
+        if (String(task.id) === String(parentTaskId) && (task as any).subtasks) {
+          return {
+            ...task,
+            subtasks: (task as any).subtasks.filter((s: any) => String(s.id) !== taskId)
+          }
+        }
+        return task
+      }))
+    } else {
+      // Remove main task from tasks state
+      setTasks(prev => prev.filter(task => String(task.id) !== taskId))
+    }
+    setTaskToEdit(null)
+  }
+
   // New function to handle subtask inline updates
   const handleSubtaskUpdate = async (subtaskId: string, field: string, value: string | Date | null) => {
-    // Find the subtask to get its taskId
-    const subtask = subtasks.find(s => s.id === subtaskId)
+    // Find the subtask to get its taskId - use String comparison for consistent ID matching
+    const subtask = subtasks.find(s => String(s.id) === String(subtaskId))
     if (!subtask) return
 
     const taskId = (subtask as any).taskId
@@ -901,7 +959,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     // Optimistically update UI
     setSubtasks(prevSubtasks =>
       prevSubtasks.map(st => {
-        if (st.id === subtaskId) {
+        if (String(st.id) === String(subtaskId)) {
           const updatedSubtask = { ...st }
 
           switch (field) {
@@ -912,9 +970,30 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
               (updatedSubtask as unknown as { priority: string }).priority = value as string
               break
             case 'assignee':
-              updatedSubtask.assigneeId = value === 'unassigned' ? undefined : value as string
-              updatedSubtask.assignee = (value === 'unassigned' ? null :
-                teamMembers.find(member => member.id === value)) as unknown as User | undefined
+              // value is now an array of assignee IDs (as strings)
+              const assigneeIdsArray = value as unknown as string[]
+              // Update legacy field for backwards compatibility
+              updatedSubtask.assigneeId = assigneeIdsArray.length > 0 ? assigneeIdsArray[0] : undefined
+              // Update assignees array
+              const newAssignees = assigneeIdsArray.map(id => {
+                const member = teamMembers.find(m => String(m.id) === id)
+                return member ? {
+                  userId: id,
+                  user: {
+                    id: member.id,
+                    name: (member as unknown as User).name,
+                    email: (member as unknown as User).email
+                  }
+                } : null
+              }).filter(Boolean);
+              (updatedSubtask as any).assignees = newAssignees
+              // Update legacy single assignee
+              const firstMember = assigneeIdsArray.length > 0 ? teamMembers.find(m => String(m.id) === assigneeIdsArray[0]) : null
+              updatedSubtask.assignee = firstMember ? {
+                id: String(firstMember.id),
+                name: (firstMember as unknown as User).name,
+                email: (firstMember as unknown as User).email
+              } as unknown as User : undefined
               break
             case 'dueDate':
               (updatedSubtask as unknown as { dueDate: string | null }).dueDate = value ? (value instanceof Date ? dateToString(value) : value as string) : null
@@ -940,7 +1019,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           updateData.priority = value
           break
         case 'assignee':
-          updateData.assigneeId = value === 'unassigned' ? null : value
+          // value is now an array of assignee IDs
+          updateData.assigneeIds = value as unknown as string[]
           break
         case 'dueDate':
           updateData.dueDate = value ? (value instanceof Date ? dateToString(value) : value) : null
@@ -966,7 +1046,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           updateData
         })
         setSubtasks(prevSubtasks =>
-          prevSubtasks.map(st => st.id === subtaskId ? subtask : st)
+          prevSubtasks.map(st => String(st.id) === String(subtaskId) ? subtask : st)
         )
       } else {
         // Refresh parent task to update subtask count/progress
@@ -982,7 +1062,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       // Revert on error
       console.error('Error updating subtask:', error)
       setSubtasks(prevSubtasks =>
-        prevSubtasks.map(st => st.id === subtaskId ? subtask : st)
+        prevSubtasks.map(st => String(st.id) === String(subtaskId) ? subtask : st)
       )
     }
   }
@@ -1736,23 +1816,39 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                         )
                       case 'assignee':
                         return (
-                          <div>
-                            {canEdit ? (
-                              <Select
-                                value={task.assigneeId || 'unassigned'}
-                                onValueChange={async (newAssigneeId) => {
-                                const assignee = teamMembers.find(m => m.id === newAssigneeId)
-                                const oldAssigneeId = task.assigneeId
-                                const oldAssignee = task.assignee
+                          <div className="flex items-center gap-1">
+                            {(() => {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const assignees = (task as any).assignees || []
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const currentAssigneeIds = assignees.map((a: any) => String(a.userId))
+
+                              // Use assignees array if available, otherwise fall back to single assignee
+                              const displayAssignees = assignees.length > 0
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                ? assignees.map((a: any) => a.user)
+                                : (task.assignee ? [task.assignee] : [])
+
+                              const toggleAssignee = async (userId: string) => {
+                                const newAssigneeIds = currentAssigneeIds.includes(userId)
+                                  ? currentAssigneeIds.filter((id: string) => id !== userId)
+                                  : [...currentAssigneeIds, userId]
 
                                 // Optimistically update UI
+                                const newAssignees = newAssigneeIds.map((id: string) => {
+                                  const member = teamMembers.find(m => String(m.id) === id)
+                                  return {
+                                    userId: id,
+                                    user: member ? {
+                                      id: member.id,
+                                      name: (member as unknown as User).name,
+                                      email: (member as unknown as User).email
+                                    } : { id, name: 'Usuario', email: '' }
+                                  }
+                                })
                                 setTasks(prev => prev.map(t =>
                                   t.id === task.id
-                                    ? {
-                                        ...t,
-                                        assigneeId: newAssigneeId === 'unassigned' ? undefined : newAssigneeId,
-                                        assignee: newAssigneeId === 'unassigned' ? undefined : assignee as unknown as User
-                                      } as unknown as Task
+                                    ? { ...t, assignees: newAssignees } as unknown as Task
                                     : t
                                 ) as unknown as Task[])
 
@@ -1761,64 +1857,93 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                                   const response = await fetch(`/api/tasks/${task.id}`, {
                                     method: 'PATCH',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      assigneeId: newAssigneeId === 'unassigned' ? null : newAssigneeId
-                                    })
+                                    body: JSON.stringify({ assigneeIds: newAssigneeIds })
                                   })
-
                                   if (!response.ok) {
                                     // Revert on error
                                     setTasks(prev => prev.map(t =>
                                       t.id === task.id
-                                        ? { ...t, assigneeId: oldAssigneeId, assignee: oldAssignee } as unknown as Task
+                                        ? { ...t, assignees } as unknown as Task
                                         : t
                                     ) as unknown as Task[])
-                                    console.error('Failed to update task assignee')
                                   }
                                 } catch (error) {
-                                  // Revert on error
-                                  console.error('Error updating task assignee:', error)
+                                  console.error('Error updating assignees:', error)
                                   setTasks(prev => prev.map(t =>
                                     t.id === task.id
-                                      ? { ...t, assigneeId: oldAssigneeId, assignee: oldAssignee } as unknown as Task
+                                      ? { ...t, assignees } as unknown as Task
                                       : t
                                   ) as unknown as Task[])
                                 }
-                              }}
-                            >
-                              <SelectTrigger className="h-6 border-0 p-0 hover:bg-gray-100 focus:ring-0 justify-start">
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Users className="h-3 w-3 text-gray-400" />
-                                  <span className="truncate text-xs">
-                                    {task.assignee ? task.assignee.name : 'Sin asignar'}
-                                  </span>
-                                </div>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">
-                                  <div className="flex items-center gap-1">
-                                    <Users className="h-3 w-3 text-gray-400" />
-                                    <span className="text-xs">Sin asignar</span>
-                                  </div>
-                                </SelectItem>
-                                {teamMembers.map((member) => (
-                                  <SelectItem key={member.id} value={member.id}>
-                                    <div className="flex items-center gap-1">
-                                      <Users className="h-3 w-3 text-gray-400" />
-                                      <span className="text-xs">{(member as unknown as User).name || (member as unknown as User).email}</span>
+                              }
+
+                              return canEdit ? (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="ghost" className="h-6 p-1 hover:bg-gray-100">
+                                      <Users className="h-3 w-3 text-gray-400 mr-1" />
+                                      {displayAssignees.length === 0 ? (
+                                        <span className="text-xs text-gray-500">Sin asignar</span>
+                                      ) : (
+                                        <div className="flex items-center -space-x-1">
+                                          {displayAssignees.slice(0, 3).map((user: User, index: number) => {
+                                            // Get initials from first 2 words of name
+                                            const getInitials = (name?: string, email?: string) => {
+                                              if (name) {
+                                                const words = name.split(' ').filter(w => w.length > 0)
+                                                return words.slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('')
+                                              }
+                                              return email?.charAt(0).toUpperCase() || '?'
+                                            }
+                                            return (
+                                              <div
+                                                key={user.id || index}
+                                                className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center border border-white"
+                                                title={user.name || user.email}
+                                              >
+                                                <span className="text-[10px] font-medium text-blue-600">
+                                                  {getInitials(user.name, user.email)}
+                                                </span>
+                                              </div>
+                                            )
+                                          })}
+                                          {displayAssignees.length > 3 && (
+                                            <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center border border-white">
+                                              <span className="text-[10px] font-medium text-gray-600">+{displayAssignees.length - 3}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-56 p-2" align="start">
+                                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                                      {teamMembers.map((member) => (
+                                        <div
+                                          key={member.id}
+                                          className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
+                                          onClick={() => toggleAssignee(String(member.id))}
+                                        >
+                                          <Checkbox checked={currentAssigneeIds.includes(String(member.id))} />
+                                          <span className="text-sm">{(member as unknown as User).name || (member as unknown as User).email}</span>
+                                        </div>
+                                      ))}
                                     </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                              </Select>
-                            ) : (
-                              <div className="flex items-center gap-1 text-sm">
-                                <Users className="h-3 w-3 text-gray-400" />
-                                <span className="truncate text-xs">
-                                  {task.assignee ? task.assignee.name : 'Sin asignar'}
-                                </span>
-                              </div>
-                            )}
+                                  </PopoverContent>
+                                </Popover>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3 text-gray-400" />
+                                  {displayAssignees.length === 0 ? (
+                                    <span className="text-xs text-gray-500">Sin asignar</span>
+                                  ) : (
+                                    <span className="text-xs text-gray-600">
+                                      {displayAssignees.map((u: User) => u.name || u.email).join(', ')}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       case 'createdBy':
@@ -2209,47 +2334,91 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                           )
                         case 'assignee':
                           return (
-                            <div>
-                              {canEdit ? (
-                                <Select
-                                  value={subtask.assigneeId || 'unassigned'}
-                                  onValueChange={(newAssigneeId) => {
-                                    handleSubtaskUpdate(subtask.id, 'assignee', newAssigneeId)
-                                  }}
-                                >
-                                  <SelectTrigger className="h-6 border-0 p-0 hover:bg-gray-100 focus:ring-0 justify-start">
-                                    <div className="flex items-center gap-1 text-sm">
-                                      <Users className="h-3 w-3 text-gray-400" />
-                                      <span className="truncate text-xs">
-                                        {subtask.assignee ? subtask.assignee.name : 'Sin asignar'}
-                                      </span>
-                                    </div>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="unassigned">
-                                      <div className="flex items-center gap-1">
-                                        <Users className="h-3 w-3 text-gray-400" />
-                                        <span className="text-xs">Sin asignar</span>
+                            <div className="flex items-center gap-1">
+                              {(() => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const assignees = (subtask as any).assignees || []
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const currentAssigneeIds = assignees.map((a: any) => String(a.userId))
+
+                                // Use assignees array if available, otherwise fall back to single assignee
+                                const displayAssignees = assignees.length > 0
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  ? assignees.map((a: any) => a.user)
+                                  : (subtask.assignee ? [subtask.assignee] : [])
+
+                                const toggleAssignee = (userId: string) => {
+                                  const newAssigneeIds = currentAssigneeIds.includes(userId)
+                                    ? currentAssigneeIds.filter((id: string) => id !== userId)
+                                    : [...currentAssigneeIds, userId]
+                                  handleSubtaskUpdate(subtask.id, 'assignee', newAssigneeIds as unknown as string)
+                                }
+
+                                const getInitials = (name?: string, email?: string) => {
+                                  if (name) {
+                                    const words = name.split(' ').filter(w => w.length > 0)
+                                    return words.slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('')
+                                  }
+                                  return email?.charAt(0).toUpperCase() || '?'
+                                }
+
+                                return canEdit ? (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="ghost" className="h-6 p-1 hover:bg-gray-100">
+                                        <Users className="h-3 w-3 text-gray-400 mr-1" />
+                                        {displayAssignees.length === 0 ? (
+                                          <span className="text-xs text-gray-500">Sin asignar</span>
+                                        ) : (
+                                          <div className="flex items-center -space-x-1">
+                                            {displayAssignees.slice(0, 3).map((user: User, index: number) => (
+                                              <div
+                                                key={user.id || index}
+                                                className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center border border-white"
+                                                title={user.name || user.email}
+                                              >
+                                                <span className="text-[10px] font-medium text-blue-600">
+                                                  {getInitials(user.name, user.email)}
+                                                </span>
+                                              </div>
+                                            ))}
+                                            {displayAssignees.length > 3 && (
+                                              <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center border border-white">
+                                                <span className="text-[10px] font-medium text-gray-600">+{displayAssignees.length - 3}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-56 p-2" align="start">
+                                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                                        {teamMembers.map((member) => (
+                                          <div
+                                            key={member.id}
+                                            className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
+                                            onClick={() => toggleAssignee(String(member.id))}
+                                          >
+                                            <Checkbox checked={currentAssigneeIds.includes(String(member.id))} />
+                                            <span className="text-sm">{(member as unknown as User).name || (member as unknown as User).email}</span>
+                                          </div>
+                                        ))}
                                       </div>
-                                    </SelectItem>
-                                    {teamMembers.map((member) => (
-                                      <SelectItem key={member.id} value={member.id}>
-                                        <div className="flex items-center gap-1">
-                                          <Users className="h-3 w-3 text-gray-400" />
-                                          <span className="text-xs">{(member as unknown as User).name || (member as unknown as User).email}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Users className="h-3 w-3 text-gray-400" />
-                                  <span className="truncate text-xs">
-                                    {subtask.assignee ? subtask.assignee.name : 'Sin asignar'}
-                                  </span>
-                                </div>
-                              )}
+                                    </PopoverContent>
+                                  </Popover>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <Users className="h-3 w-3 text-gray-400" />
+                                    {displayAssignees.length === 0 ? (
+                                      <span className="text-xs text-gray-500">Sin asignar</span>
+                                    ) : (
+                                      <span className="text-xs text-gray-600">
+                                        {displayAssignees.map((u: User) => u.name || u.email).join(', ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
                             </div>
                           )
                         case 'dueDate':
@@ -2584,7 +2753,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             // Kanban View (Status Columns)
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCorners}
+              collisionDetection={collisionDetectionStrategy}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
@@ -2600,6 +2769,10 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     getPriorityColor={getPriorityColor}
                     getPriorityText={getPriorityText}
                     canEdit={canEdit}
+                    onTaskDoubleClick={(task) => {
+                      setTaskToEdit(task)
+                      setShowEditTaskModal(true)
+                    }}
                   />
                 ))}
                 </div>
@@ -2607,16 +2780,19 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
 
               <DragOverlay>
                 {activeTask && (
-                  <DraggableTaskCard
-                    task={activeTask}
-                    teamMembers={teamMembers}
-                    onTaskUpdate={handleTaskUpdateFromCard}
-                    formatDate={formatDate}
-                    getPriorityColor={getPriorityColor}
-                    getPriorityText={getPriorityText}
-                    canEdit={canEdit}
-                    highlightOverdue={showOverdueTasks}
-                  />
+                  <div className="opacity-90">
+                    <DraggableTaskCard
+                      task={activeTask}
+                      teamMembers={teamMembers}
+                      onTaskUpdate={handleTaskUpdateFromCard}
+                      formatDate={formatDate}
+                      getPriorityColor={getPriorityColor}
+                      getPriorityText={getPriorityText}
+                      canEdit={false}
+                      highlightOverdue={showOverdueTasks}
+                      isDragging={true}
+                    />
+                  </div>
                 )}
               </DragOverlay>
             </DndContext>
@@ -2624,7 +2800,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             // Sprints View (Sprint Columns)
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCorners}
+              collisionDetection={collisionDetectionStrategy}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
@@ -2694,16 +2870,19 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
 
               <DragOverlay>
                 {activeTask && (
-                  <DraggableTaskCard
-                    task={activeTask}
-                    teamMembers={teamMembers}
-                    onTaskUpdate={handleTaskUpdateFromCard}
-                    formatDate={formatDate}
-                    getPriorityColor={getPriorityColor}
-                    getPriorityText={getPriorityText}
-                    canEdit={canEdit}
-                    highlightOverdue={showOverdueTasks}
-                  />
+                  <div className="opacity-90">
+                    <DraggableTaskCard
+                      task={activeTask}
+                      teamMembers={teamMembers}
+                      onTaskUpdate={handleTaskUpdateFromCard}
+                      formatDate={formatDate}
+                      getPriorityColor={getPriorityColor}
+                      getPriorityText={getPriorityText}
+                      canEdit={false}
+                      highlightOverdue={showOverdueTasks}
+                      isDragging={true}
+                    />
+                  </div>
                 )}
               </DragOverlay>
             </DndContext>
@@ -2869,6 +3048,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         open={showEditTaskModal}
         onOpenChange={setShowEditTaskModal}
         onTaskUpdated={handleTaskUpdated as any}
+        onTaskDeleted={handleTaskDeleted}
+        onSubtasksChanged={handleSubtaskAdded}
         statuses={projectConfig?.statuses || []}
         isSubtask={(taskToEdit as any)?.isSubtask || false}
         onEditSubtask={(subtask: any) => {
@@ -2879,6 +3060,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           } as any)
           setShowEditTaskModal(true)
         }}
+        canEdit={canEdit}
+        currentUserId={session?.user?.id ? parseInt(session.user.id) : undefined}
       />
       {/* eslint-enable @typescript-eslint/no-explicit-any */}
 

@@ -31,12 +31,19 @@ export async function PATCH(
       )
     }
 
-    // Get existing task with all fields for audit comparison
+    // Get existing task with all fields for audit comparison (including assignees)
     const existingTask = await prisma.task.findUnique({
-      where: { id: taskId }
+      where: { id: taskId },
+      include: {
+        assignees: {
+          select: {
+            userId: true
+          }
+        }
+      }
     })
 
-    if (!existingTask) {
+    if (!existingTask || existingTask.deletedAt) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
@@ -49,8 +56,11 @@ export async function PATCH(
       return accessCheck.error
     }
 
+    // Get current user ID for notifications (not for permission checking)
+    const currentUserId = parseInt(session.user.id)
+
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assigneeId, epicId, sprintId } = body
+    const { title, description, status, priority, dueDate, assigneeId, assigneeIds, epicId, sprintId } = body
 
     // Validate title if provided
     if (title !== undefined && (!title || !title.trim())) {
@@ -60,51 +70,98 @@ export async function PATCH(
       )
     }
 
-    const updatedTask = await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        ...(title !== undefined && { title: title.trim() }),
-        ...(description !== undefined && { description: description?.trim() || null }),
-        ...(status !== undefined && { status }),
-        ...(priority !== undefined && { priority }),
-        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-        ...(assigneeId !== undefined && { assigneeId: assigneeId ? parseInt(assigneeId) : null }),
-        ...(epicId !== undefined && { epicId: epicId ? parseInt(epicId) : null }),
-        ...(sprintId !== undefined && { sprintId: sprintId ? parseInt(sprintId) : null })
-      },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        epic: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            status: true
-          }
-        },
-        sprint: {
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            startDate: true,
-            endDate: true
-          }
+    // Handle assignee updates
+    // Support both legacy assigneeId (single) and new assigneeIds (multiple)
+    let assigneeIdsToUse: number[] | undefined
+    if (assigneeIds !== undefined) {
+      assigneeIdsToUse = assigneeIds
+        .map((id: string | number) => parseInt(String(id)))
+        .filter((id: number) => !isNaN(id))
+    } else if (assigneeId !== undefined) {
+      assigneeIdsToUse = assigneeId ? [parseInt(assigneeId)] : []
+    }
+
+    // Use transaction to update task and assignees atomically
+    const updatedTask = await prisma.$transaction(async (tx) => {
+      // If assignees are being updated, delete old ones and create new ones
+      if (assigneeIdsToUse !== undefined) {
+        await tx.taskAssignee.deleteMany({
+          where: { taskId }
+        })
+
+        if (assigneeIdsToUse.length > 0) {
+          await tx.taskAssignee.createMany({
+            data: assigneeIdsToUse.map(aId => ({
+              taskId,
+              userId: aId
+            }))
+          })
         }
       }
+
+      return tx.task.update({
+        where: { id: taskId },
+        data: {
+          ...(title !== undefined && { title: title.trim() }),
+          ...(description !== undefined && { description: description?.trim() || null }),
+          ...(status !== undefined && { status }),
+          ...(priority !== undefined && { priority }),
+          ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+          // Legacy field - set to first assignee for backwards compatibility
+          ...(assigneeIdsToUse !== undefined && {
+            assigneeId: assigneeIdsToUse.length > 0 ? assigneeIdsToUse[0] : null
+          }),
+          ...(epicId !== undefined && { epicId: epicId ? parseInt(epicId) : null }),
+          ...(sprintId !== undefined && { sprintId: sprintId ? parseInt(sprintId) : null })
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          assignees: {
+            select: {
+              id: true,
+              userId: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          epic: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+              status: true
+            }
+          },
+          sprint: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              startDate: true,
+              endDate: true
+            }
+          }
+        }
+      })
     })
 
     // Create audit logs for changes
@@ -115,30 +172,38 @@ export async function PATCH(
     })
 
     // Send notifications for task assignment changes
-    // Only notify if assignee actually changed AND it's not the person making the change
-    if (assigneeId !== undefined &&
-        existingTask.assigneeId !== updatedTask.assigneeId &&
-        updatedTask.assigneeId !== null &&
-        updatedTask.assigneeId !== parseInt(session.user.id)) {
-      await notifyTaskAssigned(
-        updatedTask.id.toString(),
-        updatedTask.assigneeId.toString(),
-        updatedTask.title,
-        updatedTask.projectId.toString()
-      ).catch(err => console.error('Failed to send notification:', err))
+    // Notify new assignees (users who weren't assigned before)
+    if (assigneeIdsToUse !== undefined) {
+      const oldAssigneeIds = new Set(existingTask.assignees.map(a => a.userId))
+      const newAssignees = updatedTask.assignees.filter(
+        a => !oldAssigneeIds.has(a.userId) && a.userId !== currentUserId
+      )
+
+      for (const assignee of newAssignees) {
+        await notifyTaskAssigned(
+          updatedTask.id.toString(),
+          assignee.userId.toString(),
+          updatedTask.title,
+          updatedTask.projectId.toString()
+        ).catch(err => console.error('Failed to send notification:', err))
+      }
     }
 
     // Send notifications when task is completed
-    // Notify assignee and creator (excluding the person who completed it)
+    // Notify all assignees and creator (excluding the person who completed it)
     if (status !== undefined &&
         existingTask.status !== 'COMPLETED' &&
         updatedTask.status === 'COMPLETED') {
       const usersToNotify = new Set<number>()
-      const currentUserId = parseInt(session.user.id)
 
-      if (updatedTask.assigneeId && updatedTask.assigneeId !== currentUserId) {
-        usersToNotify.add(updatedTask.assigneeId)
+      // Add all assignees (except current user)
+      for (const assignee of updatedTask.assignees) {
+        if (assignee.userId !== currentUserId) {
+          usersToNotify.add(assignee.userId)
+        }
       }
+
+      // Add creator (if different from current user)
       if (updatedTask.createdById !== currentUserId) {
         usersToNotify.add(updatedTask.createdById)
       }
@@ -199,6 +264,20 @@ export async function GET(
             email: true
           }
         },
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        },
         createdBy: {
           select: {
             id: true,
@@ -252,7 +331,7 @@ export async function GET(
       }
     })
 
-    if (!task) {
+    if (!task || task.deletedAt) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
@@ -283,6 +362,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get session to check if user is the creator
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const resolvedParams = await params
     const taskId = parseInt(resolvedParams.id)
 
@@ -293,16 +381,18 @@ export async function DELETE(
       )
     }
 
-    // Check if task exists and get project ID
+    // Check if task exists and get project ID and creator
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       select: {
         id: true,
-        projectId: true
+        projectId: true,
+        createdById: true,
+        deletedAt: true
       }
     })
 
-    if (!task) {
+    if (!task || task.deletedAt) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
@@ -315,8 +405,25 @@ export async function DELETE(
       return accessCheck.error
     }
 
-    await prisma.task.delete({
-      where: { id: taskId }
+    // Only the creator can delete the task
+    const currentUserId = parseInt(session.user.id)
+    if (task.createdById !== currentUserId) {
+      return NextResponse.json(
+        { error: 'Solo el creador de la tarea puede eliminarla' },
+        { status: 403 }
+      )
+    }
+
+    // Soft delete - set deletedAt timestamp instead of actually deleting
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { deletedAt: new Date() }
+    })
+
+    // Also soft delete all subtasks
+    await prisma.task.updateMany({
+      where: { parentTaskId: taskId },
+      data: { deletedAt: new Date() }
     })
 
     return NextResponse.json({ message: 'Task deleted successfully' })

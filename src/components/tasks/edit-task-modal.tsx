@@ -23,8 +23,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 // Define local types to match mock data
 type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 import { Comment, Attachment } from '@/types'
@@ -36,7 +51,7 @@ interface User {
   email: string;
   name?: string;
 }
-import { Loader2, Edit3, MessageSquare, Clock, Send, User as UserIcon, Paperclip, Upload, FileText, Download, Trash2, Plus, CheckCircle2, Circle } from 'lucide-react'
+import { Loader2, Edit3, MessageSquare, Clock, Send, User as UserIcon, Paperclip, Upload, FileText, Download, Trash2, Plus, CheckCircle2, Circle, Users, X } from 'lucide-react'
 
 const editTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255, 'Title too long'),
@@ -44,7 +59,7 @@ const editTaskSchema = z.object({
   status: z.string().min(1, 'Status is required'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   dueDate: z.string().optional(),
-  assigneeId: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   sprintId: z.string().optional(),
   epicId: z.string().optional(),
 })
@@ -99,9 +114,13 @@ interface EditTaskModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onTaskUpdated: (task: Task) => void
+  onTaskDeleted?: (taskId: string) => void
+  onSubtasksChanged?: () => void // Called when subtasks are added/deleted from within the modal
   statuses?: ProjectStatus[]
   isSubtask?: boolean
   onEditSubtask?: (subtask: Subtask) => void
+  canEdit?: boolean // If false, fields are read-only but comments are still allowed
+  currentUserId?: number // Current user ID to check if they can delete
 }
 
 interface User {
@@ -116,13 +135,20 @@ export function EditTaskModal({
   open,
   onOpenChange,
   onTaskUpdated,
+  onTaskDeleted,
+  onSubtasksChanged,
   statuses = [],
   isSubtask = false,
-  onEditSubtask
+  onEditSubtask,
+  canEdit = true,
+  currentUserId
 }: EditTaskModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [subtasksWereModified, setSubtasksWereModified] = useState(false)
   const [teamMembers, setTeamMembers] = useState<User[]>([])
   const [sprints, setSprints] = useState<{ id: string; name: string; startDate: string; endDate: string }[]>([])
   const [epics, setEpics] = useState<{ id: string; name: string; color?: string }[]>([])
@@ -151,18 +177,57 @@ export function EditTaskModal({
 
   const status = watch('status')
   const priority = watch('priority')
-  const assigneeId = watch('assigneeId')
+  const assigneeIds = watch('assigneeIds') || []
   const sprintId = watch('sprintId')
+
+  const toggleAssignee = (userId: string) => {
+    const currentIds = assigneeIds || []
+    if (currentIds.includes(userId)) {
+      setValue('assigneeIds', currentIds.filter(id => id !== userId))
+    } else {
+      setValue('assigneeIds', [...currentIds, userId])
+    }
+  }
+
+  const removeAssignee = (userId: string) => {
+    setValue('assigneeIds', (assigneeIds || []).filter(id => id !== userId))
+  }
+
+  const getSelectedAssignees = () => {
+    return teamMembers.filter(member => (assigneeIds || []).includes(String(member.id)))
+  }
+
+  // Check if current user is the creator (only creator can delete)
+  const isCreator = currentUserId && task && (
+    (task as any).createdById === currentUserId ||
+    (task as any).createdBy?.id === currentUserId ||
+    String((task as any).createdById) === String(currentUserId) ||
+    String((task as any).createdBy?.id) === String(currentUserId)
+  )
+  const canDelete = canEdit && isCreator
 
   useEffect(() => {
     if (open && task) {
+      // Reset to details tab when opening a new task/subtask
+      setActiveTab('details')
+
       // Populate form with task data
       setValue('title', task.title)
       setValue('description', task.description || '')
       setValue('status', task.status)
       setValue('priority', task.priority)
       setValue('dueDate', task.dueDate ? task.dueDate.split('T')[0] : '')
-      setValue('assigneeId', task.assigneeId ? String(task.assigneeId) : undefined)
+      // Load multiple assignees (new) or fall back to legacy assigneeId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const taskAssignees = (task as any).assignees
+      if (taskAssignees && taskAssignees.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setValue('assigneeIds', taskAssignees.map((a: any) => String(a.userId || a.user?.id)))
+      } else if (task.assigneeId) {
+        setValue('assigneeIds', [String(task.assigneeId)])
+      } else {
+        setValue('assigneeIds', [])
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setValue('sprintId', (task as any).sprintId ? String((task as any).sprintId) : undefined)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,6 +246,7 @@ export function EditTaskModal({
       setNewSubtaskTitle('')
       setActiveTab('details')
       setError(null)
+      setSubtasksWereModified(false)
       reset()
     }
   }, [open, task, setValue, isSubtask, reset])
@@ -342,6 +408,7 @@ export function EditTaskModal({
       toast.success('Subtarea agregada')
       setSubtasks([...subtasks, newSubtask])
       setNewSubtaskTitle('')
+      setSubtasksWereModified(true)
     } catch (error) {
       console.error('Failed to add subtask:', error)
       toast.error('Error al agregar subtarea')
@@ -395,9 +462,42 @@ export function EditTaskModal({
 
       toast.success('Subtarea eliminada')
       setSubtasks(subtasks.filter(subtask => subtask.id !== parseInt(subtaskId)))
+      setSubtasksWereModified(true)
     } catch (error) {
       console.error('Failed to delete subtask:', error)
       toast.error('Error al eliminar subtarea')
+    }
+  }
+
+  const handleDeleteTask = async () => {
+    if (!task?.id) return
+
+    setIsDeleting(true)
+    try {
+      const url = isSubtask
+        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}`
+        : `/api/tasks/${task.id}`
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task')
+      }
+
+      toast.success(isSubtask ? 'Subtarea eliminada' : 'Tarea eliminada')
+      setShowDeleteConfirm(false)
+      onOpenChange(false)
+
+      if (onTaskDeleted) {
+        onTaskDeleted(String(task.id))
+      }
+    } catch (error) {
+      console.error('Failed to delete task:', error)
+      toast.error(isSubtask ? 'Error al eliminar subtarea' : 'Error al eliminar tarea')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -491,6 +591,11 @@ export function EditTaskModal({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
+      // Notify parent if subtasks were modified so it can refresh the data
+      if (subtasksWereModified) {
+        onSubtasksChanged?.()
+        setSubtasksWereModified(false)
+      }
       reset()
       setError(null)
       setActiveTab('details')
@@ -789,30 +894,63 @@ export function EditTaskModal({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="assignee">Asignado a</Label>
-                    <Controller
-                      name="assigneeId"
-                      control={control}
-                      render={({ field }) => (
-                        <Select
-                          value={field.value || 'unassigned'}
-                          onValueChange={(value) => field.onChange(value === 'unassigned' ? undefined : value)}
+                    <Label>Asignados</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start font-normal"
                           disabled={isLoading}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar asignado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassigned">Sin asignar</SelectItem>
-                            {teamMembers.map((member) => (
-                              <SelectItem key={member.id} value={String(member.id)}>
-                                {member.name || member.email}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
+                          <Users className="mr-2 h-4 w-4" />
+                          {assigneeIds.length === 0
+                            ? 'Seleccionar asignados'
+                            : `${assigneeIds.length} asignado${assigneeIds.length > 1 ? 's' : ''}`}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-2" align="start">
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {teamMembers.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-2">No hay miembros disponibles</p>
+                          ) : (
+                            teamMembers.map((member) => (
+                              <div
+                                key={member.id}
+                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded cursor-pointer"
+                                onClick={() => toggleAssignee(String(member.id))}
+                              >
+                                <Checkbox
+                                  checked={assigneeIds.includes(String(member.id))}
+                                  onCheckedChange={() => toggleAssignee(String(member.id))}
+                                />
+                                <span className="text-sm">{member.name || member.email}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {/* Show selected assignees as chips */}
+                    {getSelectedAssignees().length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {getSelectedAssignees().map((user) => (
+                          <span
+                            key={user.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full"
+                          >
+                            {user.name || user.email}
+                            <button
+                              type="button"
+                              onClick={() => removeAssignee(String(user.id))}
+                              className="hover:bg-blue-200 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -880,25 +1018,45 @@ export function EditTaskModal({
                   </div>
                 </div>
 
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOpenChange(false)}
-                    disabled={isLoading}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Guardando...
-                      </>
-                    ) : (
-                      'Guardar Cambios'
-                    )}
-                  </Button>
+                <div className="flex justify-between">
+                  {/* Delete button on the left - only creator can delete */}
+                  {canDelete ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={isLoading || isDeleting}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+
+                  {/* Save/Cancel buttons on the right */}
+                  <div className="flex space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleOpenChange(false)}
+                      disabled={isLoading}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={isLoading || !canEdit}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : !canEdit ? (
+                        'Solo lectura'
+                      ) : (
+                        'Guardar Cambios'
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </TabsContent>
@@ -944,13 +1102,20 @@ export function EditTaskModal({
                       const isCompleted = statusConfig?.order === maxOrder
 
                       return (
-                        <div key={subtask.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div
+                          key={subtask.id}
+                          className={`group flex items-center gap-3 p-3 bg-gray-50 rounded-lg ${onEditSubtask ? 'cursor-pointer hover:bg-blue-50 transition-colors' : ''}`}
+                          onClick={() => onEditSubtask && onEditSubtask(subtask)}
+                          title={onEditSubtask ? "Clic para editar subtarea" : undefined}
+                        >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className={`text-sm font-medium ${
+                              <p className={`text-sm font-medium transition-colors ${
                                 isCompleted
                                   ? 'line-through text-gray-500'
-                                  : 'text-gray-900'
+                                  : onEditSubtask
+                                    ? 'text-gray-900 group-hover:text-blue-600 group-hover:underline'
+                                    : 'text-gray-900'
                               }`}>
                                 {subtask.title}
                               </p>
@@ -964,6 +1129,9 @@ export function EditTaskModal({
                               >
                                 {statusConfig?.name || subtask.status}
                               </span>
+                              {onEditSubtask && (
+                                <Edit3 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                              )}
                             </div>
                           {subtask.description && (
                             <p className="text-xs text-gray-500 mt-1">
@@ -1153,6 +1321,39 @@ export function EditTaskModal({
           </div>
         )}
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isSubtask ? '¿Eliminar subtarea?' : '¿Eliminar tarea?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isSubtask
+                ? 'Esta acción no se puede deshacer. La subtarea será eliminada permanentemente.'
+                : 'Esta acción no se puede deshacer. La tarea y todas sus subtareas, comentarios y archivos adjuntos serán eliminados permanentemente.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTask}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Eliminar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

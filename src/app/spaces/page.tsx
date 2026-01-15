@@ -248,6 +248,7 @@ export default function SpacesPage() {
                   onDuplicate={() => handleDuplicateSpace(space)}
                   onDelete={() => handleDeleteSpace(space)}
                   onSpaceUpdated={refreshSpaces}
+                  onDoubleClick={() => router.push(`/spaces/${space.id}`)}
                 />
               ))}
             </div>

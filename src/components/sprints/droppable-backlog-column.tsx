@@ -26,14 +26,16 @@ export function DroppableBacklogColumn({
   getPriorityText,
   canEdit = true
 }: DroppableBacklogColumnProps) {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: 'sprint-backlog',
   })
 
   return (
     <div
       ref={setNodeRef}
-      className="rounded-lg border-2 border-dashed border-gray-300 min-h-[500px] w-80 flex-shrink-0 bg-gray-50"
+      className={`rounded-lg border-2 border-dashed min-h-[500px] w-80 flex-shrink-0 transition-colors ${
+        isOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-300 bg-gray-50'
+      }`}
     >
       <div className="p-4 border-b border-gray-300">
         <div className="flex items-center justify-between">

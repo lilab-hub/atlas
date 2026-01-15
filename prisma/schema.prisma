@@ -39,8 +39,9 @@ model User {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Relations
-  assignedTasks Task[]       @relation("TaskAssignee")
-  createdTasks  Task[]       @relation("TaskCreator")
+  assignedTasksLegacy Task[]       @relation("TaskAssigneeLegacy") // DEPRECATED
+  taskAssignments     TaskAssignee[]
+  createdTasks        Task[]       @relation("TaskCreator")
   comments      Comment[]
   attachments   Attachment[]
   invitations   Invitation[] @relation("UserInvitations")
@@ -223,6 +224,7 @@ model Task {
   order       Int          @default(0) // For ordering subtasks
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?    // Soft delete - null means not deleted
 
   projectId Int
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -233,8 +235,12 @@ model Task {
   epicId Int?
   epic   Epic?   @relation(fields: [epicId], references: [id])
 
+  // DEPRECATED: Legacy single assignee (will be removed after migration)
   assigneeId Int?
-  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignee   User? @relation("TaskAssigneeLegacy", fields: [assigneeId], references: [id])
+
+  // Multiple assignees (many-to-many relationship)
+  assignees TaskAssignee[]
 
   createdById Int
   createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id])
@@ -256,6 +262,7 @@ model Task {
   @@index([assigneeId])
   @@index([status])
   @@index([priority])
+  @@index([deletedAt])
   @@map("tasks")
 }
 
@@ -264,6 +271,23 @@ enum TaskPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+// Many-to-many relationship table for Task assignees
+model TaskAssignee {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  taskId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_assignees")
 }
 
 model Comment {

@@ -21,6 +21,7 @@ interface DroppableColumnProps {
   getPriorityColor: (priority: string) => string
   getPriorityText: (priority: string) => string
   canEdit?: boolean
+  onTaskDoubleClick?: (task: Task) => void
 }
 
 export function DroppableColumn({
@@ -30,14 +31,20 @@ export function DroppableColumn({
   formatDate,
   getPriorityColor,
   getPriorityText,
-  canEdit = true
+  canEdit = true,
+  onTaskDoubleClick
 }: DroppableColumnProps) {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   })
 
   return (
-    <div ref={setNodeRef} className={`rounded-lg border-2 border-gray-200 min-h-[500px] w-72 flex-shrink-0 flex flex-col`}>
+    <div
+      ref={setNodeRef}
+      className={`rounded-lg border-2 min-h-[500px] w-72 flex-shrink-0 flex flex-col transition-colors ${
+        isOver ? 'border-blue-400 bg-blue-50/50 ring-2 ring-blue-300' : 'border-gray-200'
+      }`}
+    >
       <div className={`p-3 border-b border-gray-200 ${column.color || 'bg-gray-50'}`}>
         <div className="flex items-center justify-between">
           <h3 className={`font-semibold text-sm ${column.headerColor || 'text-gray-700'}`}>
@@ -63,6 +70,7 @@ export function DroppableColumn({
               getPriorityColor={getPriorityColor}
               getPriorityText={getPriorityText}
               canEdit={canEdit}
+              onDoubleClick={onTaskDoubleClick}
             />
           ))}
         </SortableContext>

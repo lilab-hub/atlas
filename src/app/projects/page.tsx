@@ -264,7 +264,11 @@ export default function ProjectsPage() {
           ) : viewMode === 'cards' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProjects.map((project) => (
-                <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer group">
+                <Card
+                  key={project.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer group"
+                  onDoubleClick={() => router.push(`/projects/${project.id}`)}
+                >
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

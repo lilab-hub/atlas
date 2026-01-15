@@ -30,7 +30,8 @@ export async function GET(
         projectId: projectId,
         parentTaskId: {
           not: null
-        }
+        },
+        deletedAt: null // Exclude soft-deleted subtasks
       },
       select: {
         id: true,
@@ -44,7 +45,29 @@ export async function GET(
         updatedAt: true,
         parentTaskId: true,
         assigneeId: true,
+        createdById: true, // Include for delete permission check
         assignee: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        },
+        createdBy: {
           select: {
             id: true,
             name: true,

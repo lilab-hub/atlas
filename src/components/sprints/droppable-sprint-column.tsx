@@ -36,7 +36,7 @@ export function DroppableSprintColumn({
   getPriorityText,
   canEdit = true
 }: DroppableSprintColumnProps) {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: `sprint-${sprint.id}`,
   })
 
@@ -56,7 +56,9 @@ export function DroppableSprintColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-lg border-2 min-h-[500px] w-80 flex-shrink-0 ${getSprintStatusColor(sprint.status)}`}
+      className={`rounded-lg border-2 min-h-[500px] w-80 flex-shrink-0 transition-colors ${
+        isOver ? 'ring-2 ring-blue-300 border-blue-400 bg-blue-50/50' : getSprintStatusColor(sprint.status)
+      }`}
     >
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-2">

@@ -30,7 +30,8 @@ export async function GET(
     const tasks = await prisma.task.findMany({
       where: {
         projectId,
-        parentTaskId: null // Only get parent tasks, not subtasks
+        parentTaskId: null, // Only get parent tasks, not subtasks
+        deletedAt: null // Exclude soft-deleted tasks
       },
       select: {
         id: true,
@@ -43,14 +44,30 @@ export async function GET(
         updatedAt: true,
         order: true,
         projectId: true,
-        assigneeId: true,
+        assigneeId: true, // DEPRECATED: Legacy field
         epicId: true,
         sprintId: true,
+        // Legacy single assignee (DEPRECATED)
         assignee: {
           select: {
             id: true,
             name: true,
             email: true
+          }
+        },
+        // Multiple assignees (new)
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         },
         epic: {
@@ -77,6 +94,56 @@ export async function GET(
         _count: {
           select: {
             subtasks: true
+          }
+        },
+        // Include subtasks for list view
+        subtasks: {
+          where: {
+            deletedAt: null // Exclude soft-deleted subtasks
+          },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            status: true,
+            priority: true,
+            dueDate: true,
+            createdAt: true,
+            updatedAt: true,
+            order: true,
+            assigneeId: true,
+            createdById: true,
+            assignee: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            },
+            assignees: {
+              select: {
+                id: true,
+                userId: true,
+                createdAt: true,
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              }
+            },
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            order: 'asc'
           }
         }
       },
@@ -120,7 +187,7 @@ export async function POST(
     const { userId } = accessCheck
 
     const body = await request.json()
-    const { title, description, priority, dueDate, assigneeId, sprintId, epicId, status } = body
+    const { title, description, priority, dueDate, assigneeId, assigneeIds, sprintId, epicId, status } = body
 
     // Validate required fields
     if (!title || !title.trim()) {
@@ -129,6 +196,12 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    // Support both legacy assigneeId (single) and new assigneeIds (multiple)
+    // If assigneeIds is provided, use it; otherwise fall back to assigneeId
+    const assigneeIdsToUse: number[] = assigneeIds
+      ? assigneeIds.map((id: string | number) => parseInt(String(id))).filter((id: number) => !isNaN(id))
+      : (assigneeId ? [parseInt(assigneeId)] : [])
 
     const task = await prisma.task.create({
       data: {
@@ -140,8 +213,15 @@ export async function POST(
         projectId,
         sprintId: sprintId ? parseInt(sprintId) : null,
         epicId: epicId ? parseInt(epicId) : null,
-        assigneeId: assigneeId ? parseInt(assigneeId) : null,
-        createdById: userId
+        // Legacy field (DEPRECATED) - set to first assignee for backwards compatibility
+        assigneeId: assigneeIdsToUse.length > 0 ? assigneeIdsToUse[0] : null,
+        createdById: userId,
+        // Create multiple assignees
+        assignees: {
+          create: assigneeIdsToUse.map(aId => ({
+            userId: aId
+          }))
+        }
       },
       include: {
         assignee: {
@@ -149,6 +229,20 @@ export async function POST(
             id: true,
             name: true,
             email: true
+          }
+        },
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         },
         createdBy: {
@@ -175,14 +269,16 @@ export async function POST(
       }
     })
 
-    // Send notification if task is assigned to someone (and it's not the creator)
-    if (task.assigneeId && task.assigneeId !== userId) {
-      await notifyTaskAssigned(
-        task.id.toString(),
-        task.assigneeId.toString(),
-        task.title,
-        task.projectId.toString()
-      ).catch(err => console.error('Failed to send notification:', err))
+    // Send notifications to all assignees (except the creator)
+    for (const assignee of task.assignees) {
+      if (assignee.userId !== userId) {
+        await notifyTaskAssigned(
+          task.id.toString(),
+          assignee.userId.toString(),
+          task.title,
+          task.projectId.toString()
+        ).catch(err => console.error('Failed to send notification:', err))
+      }
     }
 
     return NextResponse.json(task, { status: 201 })

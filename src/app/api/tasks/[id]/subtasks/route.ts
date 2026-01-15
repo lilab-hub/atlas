@@ -33,6 +33,7 @@ export async function GET(
     const subtasks = await prisma.task.findMany({
       where: {
         parentTaskId: taskId,
+        deletedAt: null, // Exclude soft-deleted subtasks
         project: {
           members: {
             some: {
@@ -42,12 +43,39 @@ export async function GET(
         }
       },
       orderBy: { order: 'asc' },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        createdAt: true,
+        updatedAt: true,
+        order: true,
+        assigneeId: true,
+        createdById: true,
+        parentTaskId: true,
+        projectId: true,
         assignee: {
           select: {
             id: true,
             name: true,
             email: true
+          }
+        },
+        assignees: {
+          select: {
+            id: true,
+            userId: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         },
         createdBy: {
@@ -129,6 +157,7 @@ export async function POST(
       select: {
         id: true,
         projectId: true,
+        deletedAt: true,
         project: {
           select: {
             template: {
@@ -145,7 +174,7 @@ export async function POST(
       }
     })
 
-    if (!task) {
+    if (!task || task.deletedAt) {
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
