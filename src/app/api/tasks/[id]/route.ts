@@ -405,11 +405,25 @@ export async function DELETE(
       return accessCheck.error
     }
 
-    // Only the creator can delete the task
+    // Only the creator or project owner can delete the task
     const currentUserId = parseInt(session.user.id)
-    if (task.createdById !== currentUserId) {
+    const isCreator = task.createdById === currentUserId
+
+    // Check if user is the project owner
+    const projectMember = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId: task.projectId,
+          userId: currentUserId
+        }
+      }
+    })
+
+    const isProjectOwner = projectMember?.role === 'OWNER'
+
+    if (!isCreator && !isProjectOwner) {
       return NextResponse.json(
-        { error: 'Solo el creador de la tarea puede eliminarla' },
+        { error: 'Solo el creador de la tarea o el propietario del proyecto pueden eliminarla' },
         { status: 403 }
       )
     }

@@ -187,6 +187,11 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     member => member.userId === parseInt(session?.user?.id || '0') && member.role !== 'VIEWER'
   )
 
+  // Get current user's role in the project
+  const userProjectRole = project?.members?.find(
+    member => member.userId === parseInt(session?.user?.id || '0')
+  )?.role
+
   // Configuración de sensores para drag and drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -3062,6 +3067,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         }}
         canEdit={canEdit}
         currentUserId={session?.user?.id ? parseInt(session.user.id) : undefined}
+        userProjectRole={userProjectRole}
       />
       {/* eslint-enable @typescript-eslint/no-explicit-any */}
 

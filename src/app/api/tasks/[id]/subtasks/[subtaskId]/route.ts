@@ -313,11 +313,33 @@ export async function DELETE(
       )
     }
 
-    // Only the creator can delete the subtask
+    // Only the creator or project owner can delete the subtask
     const currentUserId = parseInt(session.user.id)
-    if (subtask.createdById !== currentUserId) {
+    const isCreator = subtask.createdById === currentUserId
+
+    // Check if user is the project owner
+    const projectId = subtask.parentTask?.project?.id
+    if (!projectId) {
       return NextResponse.json(
-        { error: 'Solo el creador de la subtarea puede eliminarla' },
+        { error: 'Project not found' },
+        { status: 404 }
+      )
+    }
+
+    const projectMember = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId: projectId,
+          userId: currentUserId
+        }
+      }
+    })
+
+    const isProjectOwner = projectMember?.role === 'OWNER'
+
+    if (!isCreator && !isProjectOwner) {
+      return NextResponse.json(
+        { error: 'Solo el creador de la subtarea o el propietario del proyecto pueden eliminarla' },
         { status: 403 }
       )
     }

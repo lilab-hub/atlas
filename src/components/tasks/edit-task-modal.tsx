@@ -121,6 +121,7 @@ interface EditTaskModalProps {
   onEditSubtask?: (subtask: Subtask) => void
   canEdit?: boolean // If false, fields are read-only but comments are still allowed
   currentUserId?: number // Current user ID to check if they can delete
+  userProjectRole?: string // User's role in the project (OWNER, ADMIN, MEMBER, VIEWER)
 }
 
 interface User {
@@ -141,7 +142,8 @@ export function EditTaskModal({
   isSubtask = false,
   onEditSubtask,
   canEdit = true,
-  currentUserId
+  currentUserId,
+  userProjectRole
 }: EditTaskModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
@@ -197,14 +199,15 @@ export function EditTaskModal({
     return teamMembers.filter(member => (assigneeIds || []).includes(String(member.id)))
   }
 
-  // Check if current user is the creator (only creator can delete)
+  // Check if current user is the creator or project owner (both can delete)
   const isCreator = currentUserId && task && (
     (task as any).createdById === currentUserId ||
     (task as any).createdBy?.id === currentUserId ||
     String((task as any).createdById) === String(currentUserId) ||
     String((task as any).createdBy?.id) === String(currentUserId)
   )
-  const canDelete = canEdit && isCreator
+  const isProjectOwner = userProjectRole === 'OWNER'
+  const canDelete = canEdit && (isCreator || isProjectOwner)
 
   useEffect(() => {
     if (open && task) {
