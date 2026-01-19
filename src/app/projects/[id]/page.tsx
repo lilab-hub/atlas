@@ -21,6 +21,7 @@ import { EditProjectModal } from '@/components/projects/edit-project-modal'
 import { ProjectConfigModal } from '@/components/projects/project-config-modal'
 import { EditTaskModal } from '@/components/tasks/edit-task-modal'
 import { AddSubtaskModal } from '@/components/tasks/add-subtask-modal'
+import { ImportTasksModal } from '@/components/tasks/import-tasks-modal'
 import { EpicsList } from '@/components/epics/epics-list'
 import { Epic } from '@/types'
 import { CreateSprintModal } from '@/components/sprints/create-sprint-modal'
@@ -83,7 +84,9 @@ import {
   List,
   Filter,
   Zap,
-  Search
+  Search,
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react'
 
 // Helper function to safely parse dates and avoid timezone issues
@@ -105,7 +108,7 @@ const formatDateSafe = (dateString: string | undefined): string => {
   if (!dateString) return 'Sin fecha'
   const date = parseDate(dateString)
   if (!date || isNaN(date.getTime())) return 'Sin fecha'
-  return format(date, 'dd MMM yyyy', { locale: es })
+  return format(date, 'dd/MM/yyyy')
 }
 
 // Helper function to convert Date to YYYY-MM-DD string without timezone conversion
@@ -132,6 +135,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [projectId, setProjectId] = useState<string | null>(null)
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
+  const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [showManageMembersModal, setShowManageMembersModal] = useState(false)
   const [showEditProjectModal, setShowEditProjectModal] = useState(false)
   const [editProjectData, setEditProjectData] = useState({ name: '', description: '' })
@@ -151,6 +155,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const [sprintToEdit, setSprintToEdit] = useState<any | null>(null)
   const [epics, setEpics] = useState<Epic[]>([])
   const [showCreateEpicModal, setShowCreateEpicModal] = useState(false)
+  const [showImportTasksModal, setShowImportTasksModal] = useState(false)
   const [showConfigPanel, setShowConfigPanel] = useState(false)
   const [activeTab, setActiveTab] = useState<'tasks' | 'epics' | 'sprints'>('tasks')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -163,6 +168,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     assignee: [] as string[]
   })
   const [searchQuery, setSearchQuery] = useState('')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [newTaskForm, setNewTaskForm] = useState({
     title: '',
     description: '',
@@ -785,12 +791,13 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   }
 
   const handleCreateTask = async () => {
-    if (!newTaskForm.title.trim() || !projectId) return
+    if (!newTaskForm.title.trim() || !projectId || isCreatingTask) return
 
     // Get the first status from the template (sorted by order)
     const firstStatus = projectConfig?.statuses.sort((a, b) => a.order - b.order)[0]
     const defaultStatus = firstStatus?.id || 'PENDING'
 
+    setIsCreatingTask(true)
     try {
       const response = await fetch(`/api/projects/${projectId}/tasks`, {
         method: 'POST',
@@ -833,6 +840,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
       })
     } catch (error) {
       console.error('Error creating task:', error)
+    } finally {
+      setIsCreatingTask(false)
     }
   }
 
@@ -1289,13 +1298,23 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
           </div>
           <div className="flex items-center space-x-2">
             {canEdit && (
-              <Button
-                size="sm"
-                onClick={handleNewTask}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Tarea
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowImportTasksModal(true)}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Importar Excel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleNewTask}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Tarea
+                </Button>
+              </>
             )}
             {isProjectOwnerOrAdmin && (
               <Button
@@ -1410,26 +1429,17 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* Search Box - Only for tasks */}
-              {activeTab === 'tasks' && (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar tareas..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 w-64"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+              {/* Clear Filters Button - Only show when there are active column filters */}
+              {activeTab === 'tasks' && viewMode === 'grid' && Object.values(columnFilters).some(v => v && v.trim()) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setColumnFilters({})}
+                  className="text-gray-600"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Limpiar filtros
+                </Button>
               )}
 
               {/* View Toggle Buttons - Only for tasks */}
@@ -2528,7 +2538,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     return (
                       <div
                         key={`subtask-${subtask.id}`}
-                        className={`group grid gap-4 p-2 items-center bg-gray-50/50 hover:bg-blue-50 ${canEdit ? 'cursor-pointer' : 'cursor-default'} transition-colors border-l-2 border-blue-200 ${
+                        className={`group grid gap-4 py-1 px-3 items-center bg-gray-50/50 hover:bg-blue-50 ${canEdit ? 'cursor-pointer' : 'cursor-default'} transition-colors border-l-2 border-blue-200 ${
                           showOverdueTasks && isSubtaskOverdue ? 'bg-red-50' : ''
                         }`}
                         style={{gridTemplateColumns}}
@@ -2544,13 +2554,44 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                     )
                   }
 
-                  // Filter tasks by search query
+                  // Filter tasks by search query and column filters
                   const getFilteredTasks = () => {
                     let filtered = tasks
 
+                    // Helper to get column value as string for filtering
+                    const getColumnValue = (task: Task, columnId: string): string => {
+                      switch (columnId) {
+                        case 'title':
+                          return task.title || ''
+                        case 'description':
+                          return task.description || ''
+                        case 'status':
+                          const statusConfig = projectConfig?.statuses.find(s => String(s.id) === String(task.status))
+                          return statusConfig?.name || getStatusText(task.status)
+                        case 'priority':
+                          return getPriorityText(task.priority)
+                        case 'assignee':
+                          const assignees = (task as any).assignees || []
+                          if (assignees.length > 0) {
+                            return assignees.map((a: any) => a.user?.name || a.user?.email || '').join(' ')
+                          }
+                          return task.assignee?.name || task.assignee?.email || 'Sin asignar'
+                        case 'dueDate':
+                          return task.dueDate ? formatDateSafe(task.dueDate as unknown as string) : 'Sin fecha'
+                        case 'createdBy':
+                          return task.createdBy?.name || ''
+                        case 'createdAt':
+                          return task.createdAt ? formatDate(task.createdAt as unknown as string) : ''
+                        case 'updatedAt':
+                          return task.updatedAt ? formatDate(task.updatedAt as unknown as string) : ''
+                        default:
+                          return ''
+                      }
+                    }
+
                     // Helper function to check if a task matches the filter criteria
                     const taskMatchesFilters = (task: Task) => {
-                      // Check search query
+                      // Check search query (global search)
                       if (searchQuery.trim()) {
                         const query = searchQuery.toLowerCase()
                         const matchesSearch =
@@ -2560,17 +2601,27 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                         if (!matchesSearch) return false
                       }
 
-                      // Check status filter
+                      // Check column filters
+                      for (const [columnId, filterValue] of Object.entries(columnFilters)) {
+                        if (filterValue && filterValue.trim()) {
+                          const cellValue = getColumnValue(task, columnId).toLowerCase()
+                          if (!cellValue.includes(filterValue.toLowerCase())) {
+                            return false
+                          }
+                        }
+                      }
+
+                      // Check status filter (from side panel)
                       if (taskFilters.status.length > 0) {
                         if (!taskFilters.status.includes(task.status)) return false
                       }
 
-                      // Check priority filter
+                      // Check priority filter (from side panel)
                       if (taskFilters.priority.length > 0) {
                         if (!taskFilters.priority.includes(task.priority)) return false
                       }
 
-                      // Check assignee filter
+                      // Check assignee filter (from side panel)
                       if (taskFilters.assignee.length > 0) {
                         if (!task.assigneeId || !taskFilters.assignee.includes(task.assigneeId.toString())) return false
                       }
@@ -2638,7 +2689,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                   const groupedTasks = getGroupedTasks()
 
                   return (
-                    <div className="space-y-6">
+                    <div className="max-h-[calc(100vh-320px)] overflow-y-auto">
                       {groupedTasks.map((group, groupIndex) => (
                         <div key={group.group || 'all'} className="space-y-2">
                           {/* Group Header */}
@@ -2670,14 +2721,25 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                           {/* Column Headers and Rows - Only show if not collapsed */}
                           {!collapsedGroups.has(group.group) && (
                             <>
-                              {/* Column Headers */}
+                              {/* Column Headers with Filters */}
                               <div
-                                className="grid gap-4 p-3 bg-gray-50 border-b font-semibold text-sm text-gray-700 rounded-t-lg"
+                                className="grid gap-4 py-2 px-3 bg-gray-50 border-b font-semibold text-sm text-gray-700 rounded-t-lg sticky top-0 z-10"
                                 style={{gridTemplateColumns}}
                               >
                                 {enabledColumns.map(column => (
-                                  <div key={column.id}>
-                                    {column.name}
+                                  <div key={column.id} className="space-y-1">
+                                    <div>{column.name}</div>
+                                    <Input
+                                      type="text"
+                                      placeholder="Filtrar..."
+                                      value={columnFilters[column.id] || ''}
+                                      onChange={(e) => setColumnFilters(prev => ({
+                                        ...prev,
+                                        [column.id]: e.target.value
+                                      }))}
+                                      className="h-6 text-xs font-normal"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
                                   </div>
                                 ))}
                               </div>
@@ -2711,7 +2773,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                                     <React.Fragment key={task.id}>
                                       {/* Main Task Row */}
                                       <div
-                                        className={`group grid gap-4 p-3 items-center hover:bg-blue-50 ${canEdit ? 'cursor-pointer' : 'cursor-default'} transition-colors ${
+                                        className={`group grid gap-4 py-1.5 px-3 items-center hover:bg-blue-50 ${canEdit ? 'cursor-pointer' : 'cursor-default'} transition-colors ${
                                           !isLastTask || shouldShowSubtasks ? 'border-b border-gray-100' : ''
                                         } ${
                                           showOverdueTasks && isTaskOverdue ? 'bg-red-50' : ''
@@ -3012,11 +3074,18 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewTaskModalOpen(false)}>
+            <Button variant="outline" onClick={() => setIsNewTaskModalOpen(false)} disabled={isCreatingTask}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateTask} disabled={!newTaskForm.title.trim()}>
-              Crear Tarea
+            <Button onClick={handleCreateTask} disabled={!newTaskForm.title.trim() || isCreatingTask}>
+              {isCreatingTask ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                'Crear Tarea'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3030,8 +3099,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         open={showManageMembersModal}
         onOpenChange={setShowManageMembersModal}
         onMembersUpdated={() => {
-          // Refresh project data if needed
-          fetchProjectDetails()
+          // Only refresh team members, not the whole page
+          fetchTeamMembers()
         }}
       />
 
@@ -3089,6 +3158,22 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         projectId={parseInt(projectId || '0')}
         onSprintCreated={handleSprintCreated}
         sprint={sprintToEdit}
+      />
+
+      {/* Import Tasks Modal */}
+      <ImportTasksModal
+        projectId={projectId || ''}
+        open={showImportTasksModal}
+        onOpenChange={setShowImportTasksModal}
+        onTasksImported={async () => {
+          // Reload tasks
+          const tasksRes = await fetch(`/api/projects/${projectId}/tasks`)
+          if (tasksRes.ok) {
+            const projectTasks = await tasksRes.json()
+            setTasks(projectTasks as unknown as Task[])
+          }
+          toast.success('Tareas importadas correctamente')
+        }}
       />
 
       {/* Configuration Side Panel Overlay */}

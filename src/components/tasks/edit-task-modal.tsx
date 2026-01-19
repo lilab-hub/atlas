@@ -662,10 +662,10 @@ export function EditTaskModal({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Edit3 className="h-5 w-5 text-blue-600" />
-            <DialogTitle>
-              {isSubtask ? 'Editar Subtarea' : 'Editar Tarea'}
+            <DialogTitle className="flex items-center gap-1">
+              <span className="flex-shrink-0">{isSubtask ? 'Editar Subtarea' : 'Editar Tarea'}</span>
               {task && (
-                <span className="text-gray-600 font-normal"> - {task.title}</span>
+                <span className="text-gray-600 font-normal truncate max-w-[600px]"> - {task.title}</span>
               )}
             </DialogTitle>
           </div>
@@ -798,9 +798,11 @@ export function EditTaskModal({
 
                 <div className="space-y-2">
                   <Label htmlFor="title">Título de la Tarea *</Label>
-                  <Input
+                  <Textarea
                     id="title"
                     placeholder="Ingresa el título de la tarea"
+                    rows={2}
+                    className="w-full resize-none"
                     {...register('title')}
                     disabled={isLoading}
                   />

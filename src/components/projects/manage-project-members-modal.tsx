@@ -321,7 +321,7 @@ export function ManageProjectMembersModal({
                             <span className="flex items-center gap-2">
                               <User className="h-4 w-4" />
                               {(() => {
-                                const user = usersToShow.find(u => u.id === selectedUserId)
+                                const user = usersToShow.find(u => String(u.id) === selectedUserId)
                                 return user ? (user.name || user.email) : 'Seleccionar usuario'
                               })()}
                             </span>
@@ -347,14 +347,14 @@ export function ManageProjectMembersModal({
                                   key={user.id}
                                   value={`${user.name || ''} ${user.email}`}
                                   onSelect={() => {
-                                    setValue('userId', user.id)
+                                    setValue('userId', String(user.id))
                                     setComboboxOpen(false)
                                   }}
                                 >
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      selectedUserId === user.id ? "opacity-100" : "opacity-0"
+                                      selectedUserId === String(user.id) ? "opacity-100" : "opacity-0"
                                     )}
                                   />
                                   <User className="mr-2 h-4 w-4 text-gray-400" />
