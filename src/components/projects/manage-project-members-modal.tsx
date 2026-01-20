@@ -424,7 +424,7 @@ export function ManageProjectMembersModal({
 
                 <Button
                   type="submit"
-                  disabled={isLoading || usersToShow.length === 0}
+                  disabled={isLoading || usersToShow.length === 0 || !selectedUserId}
                   className="w-full"
                 >
                   {isLoading ? (
