@@ -10,7 +10,7 @@ env:
   DOCKER_IMAGE: atlas
   DOCKER_TAG: latest
   CONTAINER_NAME: atlas
-  SERVER_HOST: 161.132.48.57
+  SERVER_HOST: 161.132.51.42
   SERVER_USER: root
   DEPLOY_PATH: /root/atlas
   DOCKER_COMPOSE_FILE: docker-compose.prod.yml
