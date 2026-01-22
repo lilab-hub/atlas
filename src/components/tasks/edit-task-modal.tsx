@@ -336,7 +336,7 @@ export function EditTaskModal({
     try {
       if (!task?.id) return
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}/comments`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}/comments`
         : `/api/tasks/${task.id}/comments`
       console.log('[EditTaskModal] Fetching comments from:', url, 'isSubtask:', isSubtask)
       const response = await fetch(url)
@@ -358,7 +358,7 @@ export function EditTaskModal({
     try {
       if (!task?.id) return
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}/attachments`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}/attachments`
         : `/api/tasks/${task.id}/attachments`
       const response = await fetch(url)
       if (response.ok) {
@@ -478,7 +478,7 @@ export function EditTaskModal({
     setIsDeleting(true)
     try {
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}`
         : `/api/tasks/${task.id}`
 
       const response = await fetch(url, {
@@ -510,7 +510,7 @@ export function EditTaskModal({
     setIsSubmittingComment(true)
     try {
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}/comments`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}/comments`
         : `/api/tasks/${task.id}/comments`
 
       const response = await fetch(url, {
@@ -549,7 +549,7 @@ export function EditTaskModal({
     try {
       // Si es una subtarea, usar el endpoint de subtareas
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}`
         : `/api/tasks/${task.id}`
 
       // Fix timezone issue: if dueDate is provided, set it to noon local time
@@ -577,7 +577,7 @@ export function EditTaskModal({
       // If this is a subtask, add the isSubtask flag and parent taskId
       if (isSubtask) {
         updatedTask.isSubtask = true
-        updatedTask.taskId = (task as any).taskId
+        updatedTask.taskId = ((task as any).taskId || (task as any).parentTaskId)
       }
 
       toast.success('Tarea actualizada exitosamente')
@@ -644,7 +644,7 @@ export function EditTaskModal({
     try {
       if (!task?.id) return
       const url = isSubtask
-        ? `/api/tasks/${(task as any).taskId}/subtasks/${task.id}/audit-logs`
+        ? `/api/tasks/${((task as any).taskId || (task as any).parentTaskId)}/subtasks/${task.id}/audit-logs`
         : `/api/tasks/${task.id}/audit-logs`
       const response = await fetch(url)
       if (response.ok) {

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { notifyTaskAssigned, notifyTaskCompleted } from '@/lib/notifications'
+import { normalizeStatusName } from '@/lib/project-config'
 
 // PATCH /api/tasks/[id]/subtasks/[subtaskId] - Update a subtask
 export async function PATCH(
@@ -67,7 +68,9 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assigneeId, assigneeIds, order } = body
+    const { title, description, status: rawStatus, priority, dueDate, assigneeId, assigneeIds, order } = body
+    // Normalize status to uppercase with underscores if provided
+    const status = rawStatus ? normalizeStatusName(rawStatus) : undefined
 
     // Store previous status for notification comparison
     const previousStatus = subtask.status

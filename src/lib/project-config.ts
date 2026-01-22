@@ -101,13 +101,19 @@ export function getDefaultProjectConfig(projectId: string, projectType: string =
   }
 }
 
+// Helper function to normalize status name to uppercase with underscores
+// Converts "Por Hacer" to "POR_HACER"
+export function normalizeStatusName(statusName: string): string {
+  return statusName.toUpperCase().replace(/\s+/g, '_')
+}
+
 export function getProjectConfigFromTemplate(
   projectId: string,
   templateStates: TemplateState[]
 ): ProjectConfig {
   // Convert template states to ProjectStatus format
   const statuses: ProjectStatus[] = templateStates.map(state => ({
-    id: state.name.toUpperCase().replace(/\s+/g, '_'), // Convert "Por Hacer" to "POR_HACER"
+    id: normalizeStatusName(state.name),
     name: state.name,
     color: state.color,
     order: state.order

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyProjectAccess, verifyProjectEditAccess } from '@/lib/project-access'
 import { notifyTaskAssigned } from '@/lib/notifications'
+import { normalizeStatusName } from '@/lib/project-config'
 
 // GET /api/projects/[id]/tasks - Get all tasks for a project
 export async function GET(
@@ -186,8 +187,28 @@ export async function POST(
 
     const { userId } = accessCheck
 
+    // Get project template to determine default status
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        template: {
+          include: {
+            states: {
+              orderBy: { order: 'asc' }
+            }
+          }
+        }
+      }
+    })
+
+    // Get the first status from the project template, or use PENDING as fallback
+    const firstTemplateStateName = project?.template?.states?.[0]?.name
+    const defaultStatus = firstTemplateStateName ? normalizeStatusName(firstTemplateStateName) : 'PENDING'
+
     const body = await request.json()
-    const { title, description, priority, dueDate, assigneeId, assigneeIds, sprintId, epicId, status } = body
+    const { title, description, priority, dueDate, assigneeId, assigneeIds, sprintId, epicId, status: rawStatus } = body
+    // Normalize status to uppercase with underscores if provided, otherwise use template's first status
+    const status = rawStatus ? normalizeStatusName(rawStatus) : defaultStatus
 
     // Validate required fields
     if (!title || !title.trim()) {
@@ -207,7 +228,7 @@ export async function POST(
       data: {
         title: title.trim(),
         description: description?.trim() || null,
-        status: status || 'PENDING',
+        status,
         priority: priority || 'MEDIUM',
         dueDate: dueDate ? new Date(dueDate) : null,
         projectId,

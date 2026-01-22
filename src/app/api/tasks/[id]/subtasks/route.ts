@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { verifyProjectEditAccess } from '@/lib/project-access'
+import { normalizeStatusName } from '@/lib/project-config'
 
 // GET /api/tasks/[id]/subtasks - Get all subtasks for a task
 export async function GET(
@@ -188,10 +189,14 @@ export async function POST(
     }
 
     // Get the first status from the project template, or use PENDING as fallback
-    const firstTemplateState = task.project.template?.states?.[0]?.name || 'PENDING'
+    // Normalize to uppercase with underscores (e.g., "Por Hacer" -> "POR_HACER")
+    const firstTemplateStateName = task.project.template?.states?.[0]?.name
+    const defaultStatus = firstTemplateStateName ? normalizeStatusName(firstTemplateStateName) : 'PENDING'
 
     const body = await request.json()
-    const { title, description, status = firstTemplateState, priority = 'MEDIUM', dueDate, assigneeId, order } = body
+    const { title, description, status: rawStatus, priority = 'MEDIUM', dueDate, assigneeId, order } = body
+    // Normalize the status if provided, otherwise use default
+    const status = rawStatus ? normalizeStatusName(rawStatus) : defaultStatus
 
     if (!title || !title.trim()) {
       return NextResponse.json(

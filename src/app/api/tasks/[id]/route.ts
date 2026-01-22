@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { auditTaskChanges } from '@/lib/audit'
 import { notifyTaskAssigned, notifyTaskCompleted } from '@/lib/notifications'
+import { normalizeStatusName } from '@/lib/project-config'
 
 // PATCH /api/tasks/[id] - Update a task
 export async function PATCH(
@@ -60,7 +61,9 @@ export async function PATCH(
     const currentUserId = parseInt(session.user.id)
 
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assigneeId, assigneeIds, epicId, sprintId } = body
+    const { title, description, status: rawStatus, priority, dueDate, assigneeId, assigneeIds, epicId, sprintId } = body
+    // Normalize status to uppercase with underscores if provided (e.g., "Por Hacer" -> "POR_HACER")
+    const status = rawStatus ? normalizeStatusName(rawStatus) : undefined
 
     // Validate title if provided
     if (title !== undefined && (!title || !title.trim())) {
